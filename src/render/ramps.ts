@@ -4,7 +4,7 @@
 import * as THREE from 'three';
 import type { LevelDef } from '../sim/levels';
 import { evalPiece, type Lane, type Piece, type Surface } from '../sim/track';
-import { graffitiTexture, pumpRingTexture, surfaceTexture } from './textures';
+import { graffitiTexture, surfaceTexture } from './textures';
 
 export interface Placement {
   x: number;
@@ -14,7 +14,7 @@ export interface Placement {
 
 export interface LevelVisual {
   group: THREE.Group;
-  zones: { mesh: THREE.Mesh; ring: THREE.Mesh; lane: number; index: number }[];
+  zones: { mesh: THREE.Mesh; lane: number; index: number }[];
   stars: { mesh: THREE.Object3D; id: string }[];
   targets: THREE.Object3D[];
   toWorld: (x: number, y: number, lane: number, lateral?: number) => THREE.Vector3;
@@ -43,6 +43,7 @@ function surfaceMaterial(s: Surface) {
 
 const wallMat = new THREE.MeshStandardMaterial({ color: 0xe6ded2, roughness: 0.85 });
 const copingMat = new THREE.MeshStandardMaterial({ color: 0xc9d2da, metalness: 0.9, roughness: 0.25 });
+const railMat = new THREE.MeshStandardMaterial({ color: 0xf2f4f5, metalness: 0.2, roughness: 0.45 });
 const goldMat = new THREE.MeshStandardMaterial({ color: 0xffc83a, emissive: 0xffa500, emissiveIntensity: 1.2, metalness: 0.6, roughness: 0.3 });
 
 /** Splits a piece into runs of constant surface for separate materials. */
@@ -160,39 +161,32 @@ export function buildLevelVisual(level: LevelDef, at: Placement): LevelVisual {
         if (type !== 'bounce') continue;
         const q = evalPiece(p, end === 0 ? 0 : p.length);
         if (Math.abs(q.th) > 0.3) continue;
-        const rail = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.0, lane.width), copingMat);
-        rail.position.set(q.x, q.y + 0.5, zc);
-        rail.castShadow = true;
-        group.add(rail);
+        // A white painted railing: top bar and two posts.
+        const top = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, lane.width, 8), railMat);
+        top.rotation.x = Math.PI / 2;
+        top.position.set(q.x, q.y + 1.0, zc);
+        group.add(top);
+        for (const dz of [-lane.width / 2 + 0.1, lane.width / 2 - 0.1]) {
+          const post = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 1.0, 8), railMat);
+          post.position.set(q.x, q.y + 0.5, zc + dz);
+          post.castShadow = true;
+          group.add(post);
+        }
       }
     });
     // Pump zones: a golden band on the ramp surface.
     lane.pumpZones.forEach((zn, zi) => {
       const p = lane.pieces[zn.piece];
       const mat = new THREE.MeshBasicMaterial({
-        color: 0xffd23f,
+        color: 0xffc21a,
         transparent: true,
         opacity: 0.35,
         depthWrite: false,
-        blending: THREE.AdditiveBlending,
       });
       const mesh = new THREE.Mesh(ribbon(p, zn.s0, zn.s1, z0 + 0.15, z1 - 0.15, 0.015, 0.08), mat);
       mesh.renderOrder = 2;
       group.add(mesh);
-      // A gold dashed ring lying on the ramp at the heart of the zone.
-      const mid = evalPiece(p, (zn.s0 + zn.s1) / 2);
-      const ringW = Math.min(4, zn.s1 - zn.s0);
-      const ring = new THREE.Mesh(
-        new THREE.PlaneGeometry(ringW, lane.width * 0.85),
-        new THREE.MeshBasicMaterial({ map: pumpRingTexture(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }),
-      );
-      ring.rotation.order = 'ZXY';
-      ring.rotation.z = mid.th;
-      ring.rotation.x = -Math.PI / 2;
-      ring.position.set(mid.x - Math.sin(mid.th) * 0.03, mid.y + Math.cos(mid.th) * 0.03, zc);
-      ring.renderOrder = 3;
-      group.add(ring);
-      zones.push({ mesh, ring, lane: li, index: zi });
+      zones.push({ mesh, lane: li, index: zi });
     });
     // Painted kerb lines between lanes where you can carve.
     if (level.laneSwitch === 'free' && lanes.length > 1 && li < lanes.length - 1) {

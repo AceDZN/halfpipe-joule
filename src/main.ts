@@ -767,7 +767,8 @@ function updateCamera(dt: number) {
     const vfov = (camera.fov * Math.PI) / 180;
     const hfovHalf = Math.atan(Math.tan(vfov / 2) * camera.aspect);
     let dist = width / 2 / Math.tan(hfovHalf);
-    const maxDist = 22;
+    // Portrait phones: pull back further so both decks stay in view.
+    const maxDist = camera.aspect < 1 ? 38 : 22;
     const follow = dist > maxDist ? 0.85 : 0.3;
     dist = Math.min(dist, maxDist);
     dist = Math.max(dist, 9);
@@ -837,11 +838,7 @@ function updateVisuals(dt: number) {
     const avail = isCur && s.zoneAvailable();
     mat.opacity = lockedOrHidden ? 0 : avail ? 0.6 + Math.sin(t * 10) * 0.15 : 0.22 + Math.sin(t * 3) * 0.06;
     z.mesh.visible = !lockedOrHidden;
-    const rm = z.ring.material as THREE.MeshBasicMaterial;
-    rm.opacity = avail ? 1 : 0.55 + Math.sin(t * 3) * 0.15;
-    z.ring.visible = !lockedOrHidden && isCur;
-    const sc = avail && !document.body.classList.contains('reduced') ? 1 + Math.sin(t * 10) * 0.04 : 1;
-    z.ring.scale.set(sc, sc, 1);
+
   }
   // Stars.
   for (const st of starMeshes) {

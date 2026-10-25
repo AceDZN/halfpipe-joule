@@ -121,6 +121,9 @@ export function hintPill(g: CanvasRenderingContext2D, x: number, y: number, text
   g.direction = rtl ? 'rtl' : 'ltr';
   const w = g.measureText(text).width + size * 1.4;
   const h = size * 1.7;
+  // Keep the pill on screen.
+  const W = g.canvas.clientWidth || g.canvas.width;
+  x = Math.min(Math.max(x, w / 2 + 8), W - w / 2 - 8);
   g.fillStyle = 'rgba(20,24,36,0.85)';
   g.strokeStyle = strong ? '#ffd23f' : 'rgba(255,210,63,0.7)';
   g.lineWidth = strong ? 3 : 1.5;
