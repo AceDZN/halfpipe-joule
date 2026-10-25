@@ -768,7 +768,7 @@ function updateCamera(dt: number) {
     const hfovHalf = Math.atan(Math.tan(vfov / 2) * camera.aspect);
     let dist = width / 2 / Math.tan(hfovHalf);
     // Portrait phones: pull back further so both decks stay in view.
-    const maxDist = camera.aspect < 1 ? 38 : 22;
+    const maxDist = camera.aspect < 1 ? 27 : 22;
     const follow = dist > maxDist ? 0.85 : 0.3;
     dist = Math.min(dist, maxDist);
     dist = Math.max(dist, 9);
@@ -780,7 +780,7 @@ function updateCamera(dt: number) {
       .copy(look)
       .addScaledVector(vis.side, dist)
       .addScaledVector(vis.forward, -dist * 0.12)
-      .setY(2.6 + dist * 0.06);
+      .setY(2.6 + dist * (camera.aspect < 1 ? 0.14 : 0.06));
   } else {
     const fwd = vis.forward.clone();
     const ready = run.phase === 'ready';

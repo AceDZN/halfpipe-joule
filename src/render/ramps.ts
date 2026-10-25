@@ -182,6 +182,10 @@ export function buildLevelVisual(level: LevelDef, at: Placement): LevelVisual {
         transparent: true,
         opacity: 0.35,
         depthWrite: false,
+        // Must beat the ramp surface's own polygon offset.
+        polygonOffset: true,
+        polygonOffsetFactor: -8,
+        polygonOffsetUnits: -16,
       });
       const mesh = new THREE.Mesh(ribbon(p, zn.s0, zn.s1, z0 + 0.15, z1 - 0.15, 0.015, 0.08), mat);
       mesh.renderOrder = 2;
