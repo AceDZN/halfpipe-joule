@@ -27,7 +27,15 @@ function surfaceMaterial(s: Surface) {
   let m = surfMats.get(s);
   if (!m) {
     const rough: Record<Surface, number> = { smooth: 0.45, concrete: 0.8, wood: 0.7, asphalt: 0.95, sand: 1, brake: 0.9 };
-    m = new THREE.MeshStandardMaterial({ map: surfaceTexture(s), roughness: rough[s], metalness: 0 });
+    m = new THREE.MeshStandardMaterial({
+      map: surfaceTexture(s),
+      roughness: rough[s],
+      metalness: 0,
+      // Flat runs sit exactly on the promenade floor: always win the depth test.
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -4,
+    });
     surfMats.set(s, m);
   }
   return m;

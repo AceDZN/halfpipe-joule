@@ -1,0 +1,35 @@
+import { test } from 'vitest';
+import { appendFileSync, writeFileSync } from 'node:fs';
+const OUT = process.env.TUNE_OUT ?? 'output/tune.txt';
+writeFileSync(OUT, '');
+const log = (...a: unknown[]) => appendFileSync(OUT, a.join(' ') + '\n');
+import { buildLevels } from '../src/sim/levels';
+import { runBot } from './bot';
+
+const L = buildLevels();
+const fmt = (r: ReturnType<typeof runBot>) => `${r.result} t=${r.t.toFixed(1)} maxY=${r.maxY.toFixed(3)} turns=${r.turns} turnYs=${r.turnYs.slice(0,5).map(y=>y.toFixed(2)).join(',')} vmax=${r.maxSpeed.toFixed(2)} vlaunch=${r.launchSpeed?.toFixed(2)} pumps=${r.sim.pumps} heat=${r.sim.heat.toFixed(0)} by=${JSON.stringify(Object.fromEntries(Object.entries(r.sim.heatBy).map(([k,v])=>[k,Math.round(v!)])))}`;
+
+test('tune', () => {
+  const [l1, l2, l3, l4, l5, l6] = L;
+  log('L1 nopump maxT8', fmt(runBot(l1, { maxT: 8 })));
+  log('L1 first-pass', fmt(runBot(l1, { maxT: 3 })));
+  log('L1 pump after 1 turn', fmt(runBot(l1, { pump: true, pumpAfterTurns: 1 })));
+  log('L1 pump after 1 turn, 1 pump', fmt(runBot(l1, { pump: true, pumpAfterTurns: 1, maxPumps: 1, maxT: 20 })));
+  log('L1 pump after 2 turns max1', fmt(runBot(l1, { pump: true, pumpAfterTurns: 2, maxPumps: 1, maxT: 20 })));
+  log('L2 light', fmt(runBot(l2, { maxT: 3 })));
+  log('L2 heavy', fmt(runBot(l2, { maxT: 3, mass: 75 })));
+  const f0 = l3.xMarks.flat;
+  const smart = (x: number) => (x < f0 + 9 ? 0 : x < f0 + 24 ? 2 : 0);
+  log('L3 smart', fmt(runBot(l3, { route: smart })));
+  log('L3 middle', fmt(runBot(l3, { route: () => 1 })));
+  log('L3 lane0', fmt(runBot(l3, { route: () => 0 })));
+  log('L3 lane2', fmt(runBot(l3, { route: () => 2 })));
+  log('L4 nopump', fmt(runBot(l4, { maxT: 10 })));
+  log('L4 pump', fmt(runBot(l4, { pump: true })));
+  for (let i = 0; i < 4; i++) log('L5 tower', i, fmt(runBot(l5, { start: i })));
+  for (let i = 0; i < 3; i++) {
+    log('L6 lane', i, 'nopump', fmt(runBot(l6, { start: i })));
+    log('L6 lane', i, 'pump', fmt(runBot(l6, { start: i, pump: true })));
+    log('L6 lane', i, 'pump1', fmt(runBot(l6, { start: i, pump: true, maxPumps: 1 })));
+  }
+});

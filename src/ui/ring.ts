@@ -47,8 +47,18 @@ export function fmtJ(v: number) {
   return `${Math.round(v)} J`;
 }
 
+/** The three arcs (fraction of the full circle) and their pill labels. Pure: tested. */
+export function ringParts(ep: number, ek: number, heat: number, numbers: boolean) {
+  const total = Math.max(1, Math.max(0, ep) + Math.max(0, ek) + Math.max(0, heat));
+  return [
+    { key: 'ep', v: Math.max(0, ep), icon: '▲' },
+    { key: 'ek', v: Math.max(0, ek), icon: '»' },
+    { key: 'heat', v: Math.max(0, heat), icon: '🔥' },
+  ].map((p) => ({ ...p, frac: p.v / total, label: numbers ? `${p.icon} ${fmtJ(p.v)}` : p.icon }));
+}
+
 export function drawRing(g: CanvasRenderingContext2D, o: RingInput) {
-  const total = Math.max(1, o.ep + o.ek + o.heat);
+  const rp = ringParts(o.ep, o.ek, o.heat, o.numbers);
   const width = Math.max(9, o.r * 0.13);
   g.save();
   g.globalAlpha = o.alpha;
@@ -58,17 +68,18 @@ export function drawRing(g: CanvasRenderingContext2D, o: RingInput) {
   g.beginPath();
   g.arc(o.cx, o.cy, o.r, 0, Math.PI * 2);
   g.stroke();
-  const parts = [
-    { v: Math.max(0, o.ep), c: COLORS.ep, hi: COLORS.epHi, icon: '▲' },
-    { v: Math.max(0, o.ek), c: COLORS.ek, hi: COLORS.ekHi, icon: '»' },
-    { v: Math.max(0, o.heat), c: COLORS.heat, hi: COLORS.heatHi, icon: '🔥' },
+  const tone = [
+    [COLORS.ep, COLORS.epHi],
+    [COLORS.ek, COLORS.ekHi],
+    [COLORS.heat, COLORS.heatHi],
   ];
+  const parts = rp.map((p, i) => ({ ...p, c: tone[i][0], hi: tone[i][1] }));
   const gap = 0.05;
-  const epA = (parts[0].v / total) * Math.PI * 2;
+  const epA = parts[0].frac * Math.PI * 2;
   let a = -Math.PI / 2 - epA / 2;
   const labels: { x: number; y: number; text: string; c: string }[] = [];
   for (const p of parts) {
-    const span = (p.v / total) * Math.PI * 2;
+    const span = p.frac * Math.PI * 2;
     if (span > gap * 2) {
       g.lineCap = 'round';
       g.strokeStyle = p.c;
@@ -85,13 +96,13 @@ export function drawRing(g: CanvasRenderingContext2D, o: RingInput) {
       g.arc(o.cx, o.cy, o.r - width * 0.18, a + gap, a + span - gap);
       g.stroke();
     }
-    if (p.v / total > 0.035) {
+    if (p.frac > 0.035) {
       const mid = a + span / 2;
       const rr = o.r + width * 0.2;
       labels.push({
         x: o.cx + Math.cos(mid) * rr,
         y: o.cy + Math.sin(mid) * rr,
-        text: o.numbers ? `${p.icon} ${fmtJ(p.v)}` : p.icon,
+        text: p.label,
         c: p.c,
       });
     }

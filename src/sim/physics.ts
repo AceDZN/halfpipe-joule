@@ -52,6 +52,8 @@ export interface SimOptions {
   floorY?: number;
   /** 'free' = carve between lanes where the ground matches; 'start' = only before dropping in. */
   laneSwitch?: 'free' | 'start';
+  /** Multiplier on every friction coefficient (0 = frictionless, for experiments and tests). */
+  friction?: number;
 }
 
 export class Sim {
@@ -59,6 +61,7 @@ export class Sim {
   mass: number;
   floorY: number;
   laneSwitch: 'free' | 'start';
+  friction: number;
 
   mode: Mode = 'ready';
   lane = 0;
@@ -96,6 +99,7 @@ export class Sim {
     this.mass = opts.mass;
     this.floorY = opts.floorY ?? -2;
     this.laneSwitch = opts.laneSwitch ?? 'free';
+    this.friction = opts.friction ?? 1;
   }
 
   get laneObj(): Lane {
@@ -319,7 +323,7 @@ export class Sim {
     const piece = this.pieceObj;
     const sinT = Math.sin(p0.th);
     if (this.speed === 0) {
-      if (Math.abs(Math.tan(p0.th)) <= Math.max(REST_TAN, MU[p0.surf])) {
+      if (Math.abs(Math.tan(p0.th)) <= Math.max(REST_TAN, MU[p0.surf] * this.friction)) {
         if (!this.resting) {
           this.resting = true;
           this.events.push({ type: 'rest' });
@@ -351,7 +355,7 @@ export class Sim {
       this.launch(p0);
       return;
     }
-    const loss = MU[pm.surf] * m * normalAcc * Math.abs(ds);
+    const loss = MU[pm.surf] * this.friction * m * normalAcc * Math.abs(ds);
     const eMech0 = m * G * p0.y + 0.5 * m * this.speed * this.speed;
     const p1 = evalPiece(piece, s1);
     const ek1 = eMech0 - loss - m * G * p1.y;

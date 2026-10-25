@@ -55,17 +55,24 @@ export class SkaterVisual {
     this.board.traverse((o) => (o.castShadow = true));
     loadModel('board').then((m) => {
       if (!m) return;
-      // Tripo board stands on its tail (long axis = +Y): lay it along +X, wheels down.
+      // The Tripo board stands on its tail, tilted 30°: measured principal axes
+      // (long axis, width, wheel side) mapped to +X length, +Z width, -Y wheels.
       const b = m.clone();
-      const box = new THREE.Box3().setFromObject(b);
-      const size = box.getSize(new THREE.Vector3());
+      const along = new THREE.Vector3(0, 0.866, -0.5);
+      const up = new THREE.Vector3(0, 0.5, 0.866);
+      const width = new THREE.Vector3().crossVectors(along, up);
+      const basis = new THREE.Matrix4().makeBasis(along, up, width).transpose();
+      b.quaternion.setFromRotationMatrix(basis);
       const holder = new THREE.Group();
       holder.add(b);
-      b.position.sub(box.getCenter(new THREE.Vector3()));
-      holder.rotation.z = -Math.PI / 2;
-      const s = 0.82 / Math.max(size.x, size.y, size.z);
+      b.updateMatrixWorld(true);
+      const box = new THREE.Box3().setFromObject(b);
+      const size = box.getSize(new THREE.Vector3());
+      const centre = box.getCenter(new THREE.Vector3());
+      b.position.set(-centre.x, -box.min.y, -centre.z);
+      const s = 0.82 / size.x;
       holder.scale.setScalar(s);
-      holder.position.y = 0.06;
+      holder.position.y = 0.0;
       holder.traverse((o) => {
         if ((o as THREE.Mesh).isMesh) o.castShadow = true;
       });

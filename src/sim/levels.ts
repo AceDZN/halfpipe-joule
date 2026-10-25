@@ -90,6 +90,21 @@ function transWidth(r: number, rc: number, aDeg: number) {
   return (r + rc) * Math.sin(aDeg * DEG);
 }
 
+/**
+ * A drop-in wall: convex lip down to 40° (a board starting from rest leaves a
+ * convex curve past ~48°, so the lip stays below that), a straight wall, then
+ * a concave transition back to flat. Returns the straight length and width.
+ */
+function dropIn(h: number, tiltDeg: number, rc = 0.8, a = 40, r = 2.6) {
+  const t = tiltDeg * DEG;
+  const A = a * DEG;
+  const lipDrop = rc * (Math.cos(t) - Math.cos(A));
+  const transDrop = r * (1 - Math.cos(A));
+  const len = (h - lipDrop - transDrop) / Math.sin(A);
+  const width = rc * (Math.sin(A) - Math.sin(t)) + len * Math.cos(A) + r * Math.sin(A);
+  return { rc, a, r, len, width };
+}
+
 // ---------------------------------------------------------------- L1
 export const L1 = {
   startH: 2.0,
@@ -103,13 +118,14 @@ function buildFirstDrop(): LevelDef {
   const { startH, farH, angle, rc, flat } = L1;
   const r1 = startH / (1 - Math.cos(angle * DEG)) - rc;
   const r2 = farH / (1 - Math.cos(angle * DEG)) - rc;
-  const w1 = transWidth(r1, rc, angle);
+  void r1;
   const deck = 1.6;
   const tilt = 5;
-  const x0 = -(flat / 2 + w1 + deck * Math.cos(tilt * DEG));
+  const d = dropIn(startH, tilt);
+  const x0 = -(flat / 2 + d.width + deck * Math.cos(tilt * DEG));
   // The start deck tilts gently toward the ramp so you always roll back in.
   const b = new ProfileBuilder(x0, startH + deck * Math.sin(tilt * DEG), -tilt).surf('wood').line(deck).mark('lip1');
-  b.surf('smooth').arc(rc, -(angle - tilt)).arc(r1, angle / 2).pumpOn().arc(r1, angle / 2).line(flat);
+  b.surf('smooth').arc(d.rc, -(d.a - tilt)).line(d.len).arc(d.r, d.a / 2).pumpOn().arc(d.r, d.a / 2).line(flat);
   b.arc(r2, angle / 2).pumpOff().arc(r2, angle / 2).arc(rc, -angle).mark('lip2');
   const lip2 = b.pos;
   b.surf('wood').line(3.0);
@@ -148,12 +164,14 @@ export const L2 = { startH: 2.0, angle: 60, rc: 0.8, flat: 2.4, wallR: 3.0, wall
 
 function buildMass(): LevelDef {
   const { startH, angle, rc, flat, wallR } = L2;
-  const r1 = startH / (1 - Math.cos(angle * DEG)) - rc;
-  const w1 = transWidth(r1, rc, angle);
+  void angle;
+  void rc;
   const deck = 1.6;
-  const x0 = -(flat / 2 + w1 + deck);
-  const b = new ProfileBuilder(x0, startH, 0).surf('wood').line(deck).mark('lip1');
-  b.surf('smooth').arc(rc, -angle).arc(r1, angle).line(flat);
+  const tilt = 5;
+  const d = dropIn(startH, tilt);
+  const x0 = -(flat / 2 + d.width + deck * Math.cos(tilt * DEG));
+  const b = new ProfileBuilder(x0, startH + deck * Math.sin(tilt * DEG), -tilt).surf('wood').line(deck).mark('lip1');
+  b.surf('smooth').arc(d.rc, -(d.a - tilt)).line(d.len).arc(d.r, d.a).line(flat);
   // Tall quarter-pipe wall: concave up to 80° then a straight extension.
   b.arc(wallR, 80).line(1.0);
   const top = b.pos;
@@ -181,7 +199,7 @@ function buildMass(): LevelDef {
     pumpAllowed: false,
     script: 'mass',
     copings: [
-      { x: x0 + deck, y: startH, target: false },
+      { x: lip1.x, y: startH, target: false },
       { x: top.x, y: top.y, target: false },
     ],
     extentX: [x0, top.x + 0.5],
