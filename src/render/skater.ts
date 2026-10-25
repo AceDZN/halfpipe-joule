@@ -233,6 +233,13 @@ export class SkaterVisual {
     return this.current;
   }
 
+  private hopT = -1;
+
+  /** Visual ollie hop (the physics keeps the board on its line). */
+  hop() {
+    this.hopT = 0;
+  }
+
   /** Spin the board for a trick (radians to add). */
   kickflip() {
     this.boardSpin += Math.PI * 2;
@@ -263,8 +270,15 @@ export class SkaterVisual {
       this.board.rotation.z = this.bailT * 9;
     } else {
       this.rider.rotation.z = 0;
-      this.rider.position.y = 0;
-      this.board.position.set(0, 0, 0);
+      let hy = 0;
+      if (this.hopT >= 0) {
+        this.hopT += dt;
+        const k = this.hopT / 0.45;
+        hy = k < 1 ? Math.sin(k * Math.PI) * 0.45 : 0;
+        if (k >= 1) this.hopT = -1;
+      }
+      this.rider.position.y = hy;
+      this.board.position.set(0, hy * 0.85, 0);
       if (this.boardSpin > 0) {
         const step = Math.min(this.boardSpin, dt * 18);
         this.boardSpin -= step;

@@ -142,15 +142,16 @@ describe('friction and work', () => {
     expect(heatPerMetre('sand')).toBeGreaterThan(smooth * 15);
   });
 
-  test('a well-timed pump adds exactly m·g·0.3 m of work; mistimed pumps scrub speed into heat', () => {
+  test('a well-timed pump (climbing a curve) adds exactly m·g·0.3 m of work; mistimed pumps scrub speed into heat', () => {
     const r = runBot(levels[3], { pump: true, maxPumps: 1 });
     expect(r.sim.work).toBeCloseTo(50 * G * PUMP_LIFT, 9);
     const sim = new Sim(levels[3].track, { mass: 50 });
     const st = levels[3].starts[0];
     sim.place(st.lane, st.piece, st.s, st.dir);
     sim.drop();
-    sim.step(0.15); // still high on the wall: outside the pump zone
-    expect(sim.currentZone()).toBeNull();
+    sim.step(0.15); // rolling DOWN the curve: in the zone but not climbing, so not the moment
+    expect(sim.climbing()).toBe(false);
+    expect(sim.zoneAvailable()).toBe(false);
     const before = sim.mechanical();
     expect(sim.pump()).toBe('scrub');
     expect(sim.mechanical()).toBeLessThan(before);

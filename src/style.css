@@ -238,9 +238,16 @@ button {
   justify-content: flex-end;
 }
 
+.bank .col .icon small {
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.8);
+}
+
 .bank .col .icon {
   position: absolute;
   top: 6px;
+  white-space: nowrap;
   font-size: 18px;
   font-weight: 900;
   z-index: 2;

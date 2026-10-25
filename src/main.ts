@@ -325,7 +325,7 @@ function stackBar(sum: RunSummary, numbers = true) {
       ${seg('s-ek', ek, `» ${Math.round(ek)} J`)}
       ${heatSeg.map(([k, v]) => seg(`s-heat ${k}`, v ?? 0, `🔥 ${Math.round(v ?? 0)} J`)).join('')}
     </div>
-    <div class="legend"><span>▲ גובה ${J(ep)}</span><span>» תנועה ${J(ek)}</span><span>🔥 חום ${J(sum.heat)}</span>${sum.work > 0 ? `<span>💪 עבודה ${J(sum.work)}</span>` : ''}</div>
+    <div class="legend"><span>▲ אנרגיית גובה ${J(ep)}</span><span>» אנרגיית תנועה ${J(ek)}</span><span>🔥 חום ${J(sum.heat)}</span>${sum.work > 0 ? `<span>💪 עבודה ${J(sum.work)}</span>` : ''}</div>
     <p style="font-size:15px">${heatBreakdown(sum)}</p>`;
 }
 
@@ -343,8 +343,9 @@ function failText(sum: RunSummary): string {
       return `האנרגיה לא הספיקה: ${J(sum.heat)} הפכו לחום בדרך. ${l.script === 'surfaces' ? 'נסו נתיב חלק יותר ← →' : ''}`;
     }
     case 'pit': {
+      if (!l.gapNeed) return 'נפילה! כל אנרגיית התנועה הפכה בבת אחת לחום ולקול.';
       const v = sum.ledgeSpeed ?? 0;
-      const need = l.gapNeed!.v;
+      const need = l.gapNeed.v;
       return `בקצה הייתה מהירות ${ltr(`v = ${v.toFixed(1)} m/s`)} (${ltr(`Ek = ${Math.round(0.5 * sum.mass * v * v)} J`)}). צריך ${ltr(`${need} m/s`)} — בערך פי ${(need / Math.max(0.1, v)).toFixed(1)} יותר מהר. כמה פעמים יותר אנרגיית תנועה צריך? בחרו מגדל ← →`;
     }
     case 'overshoot': {
@@ -423,9 +424,11 @@ function showDoneCard() {
     const brakeX = l.xMarks.brake;
     const d = Math.max(0, s.x - brakeX);
     const v = run.lastSummary?.ledgeSpeed ?? 0;
-    extra = `<p>מהירות בקצה: ${ltr(`${v.toFixed(1)} m/s`)} · מרחק בלימה ברצועה: ${ltr(`${d.toFixed(1)} m`)}</p>`;
+    const d2 = d / 4;
+    extra = `<p>מהירות בקצה: ${ltr(`${v.toFixed(1)} m/s`)} · מרחק בלימה ברצועה: ${ltr(`${d.toFixed(1)} m`)}</p>
+      <p style="font-size:16px">מרחק הבלימה תלוי ב־${ltr('v²')}: בחצי מהמהירות הייתם נעצרים אחרי רבע מהמרחק (בערך ${ltr(`${d2.toFixed(1)} m`)}).</p>`;
   } else if (l.script === 'transfer') {
-    extra = `<p>${stackBar(run.lastSummary!)}</p>`;
+    extra = `<div>${stackBar(run.lastSummary!)}</div>`;
   } else {
     const sum = run.lastSummary!;
     extra = `<p style="font-size:16px">חום: ${J(sum.heat)}${sum.work > 0 ? ` · עבודה מהשרירים: ${J(sum.work)}` : ''}</p>`;
@@ -545,7 +548,7 @@ function action(a: 'drop' | 'pump' | 'left' | 'right' | 'ollie' | 'trick' | 'ret
       break;
     case 'trick':
       run.trick();
-      if (run.sim.mode === 'air') skater.kickflip();
+      if (run.sim.mode === 'air' || run.hopping) skater.kickflip();
       break;
     case 'retry':
       retry();
@@ -692,7 +695,10 @@ function onFeedback(f: Feedback) {
       skater.setPose('air');
       break;
     case 'ollie':
-      skater.setPose('air');
+      skater.hop();
+      run.hopping = true;
+      setTimeout(() => (run.hopping = false), 450);
+      hud.floatText(head.x, head.y, `💪 ${ltr(`${Math.round(f.value ?? 0)} J`)} → 🔥`, 'bad');
       break;
     case 'trick':
       hud.floatText(head.x, head.y, 'קיקפליפ!', 'star');
@@ -965,6 +971,10 @@ function updateHud() {
       hud.label(`start-${i}`, pp.x, pp.y, text, i === run.startIndex ? 'sel' : '', !pp.behind);
     });
   } else hud.hideLabels('start-');
+  if (l.script === 'gap' && !inMenu) {
+    const zp = project(vis.toWorld(l.xMarks.ledge + 1.3, 0.15, 0, -2));
+    hud.label('zero', zp.x, zp.y, `${ltr('h = 0 m')} · מישור ייחוס`, '', !zp.behind);
+  } else hud.hideLabels('zero');
   if (l.gapNeed && !inMenu) {
     const pp = project(vis.toWorld(l.gapNeed.x + 0.8, 2.6, run.sim.lane));
     hud.label('need', pp.x, pp.y, `צריך ${ltr(`v ≥ ${l.gapNeed.v} m/s`)}`, 'need', !pp.behind);

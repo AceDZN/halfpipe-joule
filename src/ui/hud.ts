@@ -60,9 +60,9 @@ export class Hud {
     this.bank.innerHTML = `
       <h3><span class="bolt">⚡</span> בנק אנרגיה</h3>
       <div class="cols">
-        <div class="col ep"><span class="icon">▲</span><div class="fill"></div><span class="val"></span></div>
-        <div class="col ek"><span class="icon">»</span><div class="fill"></div><span class="val"></span></div>
-        <div class="col heat"><span class="icon">🔥</span><div class="fill"></div><span class="val"></span></div>
+        <div class="col ep"><span class="icon">▲ <small>גובה</small></span><div class="fill"></div><span class="val"></span></div>
+        <div class="col ek"><span class="icon">» <small>תנועה</small></span><div class="fill"></div><span class="val"></span></div>
+        <div class="col heat"><span class="icon">🔥 <small>חום</small></span><div class="fill"></div><span class="val"></span></div>
       </div>
       <div class="hidden-note" hidden>המספרים מוסתרים בשלב הזה</div>
       <div class="readouts"></div>

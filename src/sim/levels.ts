@@ -125,8 +125,9 @@ function buildFirstDrop(): LevelDef {
   const x0 = -(flat / 2 + d.width + deck * Math.cos(tilt * DEG));
   // The start deck tilts gently toward the ramp so you always roll back in.
   const b = new ProfileBuilder(x0, startH + deck * Math.sin(tilt * DEG), -tilt).surf('wood').line(deck).mark('lip1');
-  b.surf('smooth').arc(d.rc, -(d.a - tilt)).line(d.len).arc(d.r, d.a / 2).pumpOn().arc(d.r, d.a / 2).line(flat);
-  b.arc(r2, angle / 2).pumpOff().arc(r2, angle / 2).arc(rc, -angle).mark('lip2');
+  // Pump zones are the concave curves; a pump only counts while climbing one.
+  b.surf('smooth').arc(d.rc, -(d.a - tilt)).line(d.len).pumpOn().arc(d.r, d.a).pumpOff().line(flat);
+  b.pumpOn().arc(r2, angle).pumpOff().arc(rc, -angle).mark('lip2');
   const lip2 = b.pos;
   b.surf('wood').line(3.0);
   const { lane, marks } = b.build('main', 0, 3.2, 'bounce');
@@ -255,7 +256,7 @@ function buildSurfaces(): LevelDef {
     area: 3,
     grade: 8,
     nameHe: 'משטחים רעים',
-    goalHe: 'הגיעו לרמפה בסוף — בחרו את הנתיב החלק',
+    goalHe: 'הגיעו לרמפה בסוף — החליפו נתיבים כדי להישאר על בטון חלק',
     track: { lanes },
     mass: 50,
     starts: [{ lane: 1, piece: 0, s: startS, dir: 1 }],
@@ -288,7 +289,7 @@ function buildPump(): LevelDef {
   const xTop = -(flat / 2 + wallR * Math.sin(wallA * DEG) + ext * Math.cos(wallA * DEG));
   const yTop = wallR * (1 - Math.cos(wallA * DEG)) + ext * Math.sin(wallA * DEG);
   const b = new ProfileBuilder(xTop, yTop, -wallA).surf('smooth').line(ext);
-  b.arc(wallR, wallA / 2).pumpOn().arc(wallR, wallA / 2).line(flat).arc(r2, a / 2).pumpOff().arc(r2, a / 2);
+  b.pumpOn().arc(wallR, wallA).pumpOff().line(flat).pumpOn().arc(r2, a).pumpOff();
   b.arc(rc, -a).mark('lip2');
   const lip2 = b.pos;
   b.surf('wood').line(3.0);
@@ -341,6 +342,7 @@ function buildGap(): LevelDef {
   const ledgeX = 0;
   const landY = ledgeY - landDrop;
   const landR = 2.0;
+  let brakeX = 0;
   const landLine = (landY - landR * (1 - Math.cos(landA * DEG))) / Math.sin(landA * DEG);
   drops.forEach((dh, i) => {
     const towerA = 40;
@@ -367,6 +369,7 @@ function buildGap(): LevelDef {
     b.gapTo(ledgeX + gap, landY, -landA, 'launch', 'wall', 'landing');
     b.surf('smooth').line(landLine).arc(landR, landA);
     b.surf('concrete').line(1.5).mark('brake');
+    brakeX = b.pos.x;
     b.surf('brake').line(12);
     const { lane, marks } = b.build(`tower${i}`, (i - 1.5) * 2.6, 2.2, 'bounce');
     lane.pieces[0].startEnd = 'bounce';
@@ -396,7 +399,7 @@ function buildGap(): LevelDef {
     copings: [],
     gapNeed: { x: ledgeX, v: L5.needV },
     extentX: [lanes[3].pieces[0].poly[0].x, landEnd + 14],
-    xMarks: { ledge: ledgeX, landEnd, brake: lanes[0].pieces[1].poly[0].x },
+    xMarks: { ledge: ledgeX, landEnd, brake: brakeX },
   };
 }
 
@@ -404,7 +407,7 @@ function buildGap(): LevelDef {
 export const L6 = {
   startH: 3.5,
   targetH: 3.15,
-  endX: 36,
+  endX: 40,
 };
 
 function buildTransfer(): LevelDef {
@@ -425,45 +428,44 @@ function buildTransfer(): LevelDef {
 
   const begin = () => {
     const b = new ProfileBuilder(-deck, startH, 0).surf('wood').line(deck).mark('lip');
-    b.surf('smooth').arc(dropRc, -dropA).line(slope).arc(dropR, dropA / 2).pumpOn().arc(dropR, dropA / 2);
+    b.surf('smooth').arc(dropRc, -dropA).line(slope).arc(dropR, dropA);
     return b;
   };
   const finish = (b: ProfileBuilder, id: string, z: number) => {
     b.lineToX(qpStart - 1.5);
-    b.surf('smooth').line(1.5).arc(qpR, qpA / 2).pumpOff().arc(qpR, qpA / 2).arc(qpRc, -qpA);
+    b.surf('smooth').line(1.5).pumpOn().arc(qpR, qpA).pumpOff().arc(qpRc, -qpA).mark('end');
     b.surf('wood').line(3);
     const { lane, marks } = b.build(id, z, 2.4, 'bounce');
     lane.pieces[0].startEnd = 'bounce';
     startS = marks.get('lip')!.s + 0.15;
+    const end = marks.get('end')!;
+    if (Math.abs(end.x - endX) > 1e-6) throw new Error(`transfer lane ${id} is too long: lip at ${end.x}, wanted ${endX}`);
     return lane;
   };
 
   // Lane 0 — "the fast line": straight and long on rough asphalt.
   {
     const b = begin();
-    b.line(1).pumpOff().surf('asphalt').lineToX(qpStart - 1.5);
-    b.pumpOn();
+    b.line(1).surf('asphalt').lineToX(qpStart - 1.5);
     lanes.push(finish(b, 'fast', 2.6));
   }
   // Lane 1 — "the bowls": smooth concrete with two dips you can pump in.
   {
     const b = begin();
-    b.line(1).pumpOff().surf('smooth').line(3);
+    b.line(1).surf('smooth').line(3);
     for (let d = 0; d < 2; d++) {
       const dipA = 12;
       const cvx = 14;
-      const ccv = 4;
-      b.arc(cvx, -dipA).line(0.4).arc(ccv, dipA / 2).pumpOn().arc(ccv, dipA / 2).line(0.8);
-      b.arc(ccv, dipA / 2).pumpOff().arc(ccv, dipA / 2).line(0.4).arc(cvx, -dipA).line(1.0);
+      const ccv = 6;
+      b.arc(cvx, -dipA).line(0.4).arc(ccv, dipA).line(0.8);
+      b.pumpOn().arc(ccv, dipA).pumpOff().line(0.4).arc(cvx, -dipA).line(1.0);
     }
-    b.pumpOn();
     lanes.push(finish(b, 'bowls', 0));
   }
   // Lane 2 — "the shortcut": smooth but crosses a sand patch.
   {
     const b = begin();
-    b.line(1).pumpOff().surf('smooth').line(8).surf('sand').line(3.5).surf('smooth');
-    b.pumpOn();
+    b.line(1).surf('smooth').line(8).surf('sand').line(3.5).surf('smooth');
     lanes.push(finish(b, 'sandy', -2.6));
   }
   const lip2x = endX;

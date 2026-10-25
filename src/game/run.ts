@@ -61,6 +61,7 @@ export interface LogEntry {
 }
 
 const LOG_KEY = 'halfpipe-joule-log-v1';
+const PUMP_BUFFER = 0.3;
 
 export class LevelRun {
   readonly level: LevelDef;
@@ -82,6 +83,8 @@ export class LevelRun {
   /** Mass level: results of the light and heavy runs. */
   massRuns: RunSummary[] = [];
   tricks = 0;
+  /** Set by the scene while the ollie hop animation plays (tricks are allowed). */
+  hopping = false;
   trickSpin = 0;
   stars = 0;
   /** Has the player chosen a different start/lane since the level began (for first-choice tracking). */
@@ -139,6 +142,7 @@ export class LevelRun {
     this.turnY = null;
     this.ledgeSpeed = null;
     this.vMax = 0;
+    this.pumpQueued = null;
     this.maxX = -Infinity;
     this.maxYEnd = -Infinity;
     this.passesWithoutPump = 0;
@@ -153,14 +157,40 @@ export class LevelRun {
     this.record('drop', undefined, this.level.script === 'transfer' || this.level.script === 'gap' ? this.startIndex : undefined);
   }
 
+  /** A press slightly early still counts: it waits up to PUMP_BUFFER s for the curve. */
+  private pumpQueued: number | null = null;
+
   pump() {
     if (this.phase !== 'riding' || !this.level.pumpAllowed || this.pumpLocked) return;
+    if (this.sim.zoneAvailable()) {
+      this.doPump();
+      return;
+    }
+    if (this.pumpQueued !== null) {
+      // A second press while one is waiting: the first was mistimed.
+      this.resolveQueued(false);
+    }
+    this.pumpQueued = this.clock;
+  }
+
+  private doPump() {
     const r = this.sim.pump();
+    this.pumpQueued = null;
     if (r === 'pump') {
       this.passesWithoutPump = 0;
       this.timeScale = 1;
       this.record('pump', 'good');
     } else if (r === 'scrub') this.record('pump', 'mistimed');
+  }
+
+  private resolveQueued(allowPump: boolean) {
+    if (this.pumpQueued === null) return;
+    if (allowPump && this.sim.zoneAvailable()) {
+      this.doPump();
+      return;
+    }
+    this.pumpQueued = null;
+    if (this.sim.pump() === 'scrub') this.record('pump', 'mistimed');
   }
 
   ollie() {
@@ -169,11 +199,12 @@ export class LevelRun {
       return;
     }
     if (this.phase !== 'riding') return;
-    this.sim.ollie();
+    if (this.sim.ollie()) this.record('ollie');
   }
 
   trick() {
-    if (this.phase !== 'riding' || this.sim.mode !== 'air') return;
+    if (this.phase !== 'riding') return;
+    if (this.sim.mode !== 'air' && !this.hopping) return;
     this.trickSpin += 1;
     this.tricks++;
     this.feedback.push({ kind: 'trick', text: 'טריק!' });
@@ -223,6 +254,10 @@ export class LevelRun {
     if (this.phase !== 'riding') return;
     this.clock += dt;
     this.sim.step(dt * this.timeScale);
+    if (this.pumpQueued !== null) {
+      if (this.sim.zoneAvailable()) this.resolveQueued(true);
+      else if (this.clock - this.pumpQueued > PUMP_BUFFER) this.resolveQueued(false);
+    }
     const en = this.sim.energies();
     this.vMax = Math.max(this.vMax, en.speed);
     for (const e of this.sim.drainEvents()) this.onEvent(e);

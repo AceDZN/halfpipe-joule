@@ -88,7 +88,7 @@ export class Sim {
   events: SimEvent[] = [];
   trail: TrailPoint[] = [];
 
-  private zoneUsed = new Set<number>();
+  private zoneUsed = new Set<string>();
   private inZone: number | null = null;
   private lastSurf: Surface | null = null;
   private trailClock = 0;
@@ -189,18 +189,24 @@ export class Sim {
     return null;
   }
 
+  /** Climbing a concave curve: that's when straightening your legs does work. */
+  climbing(): boolean {
+    if (this.mode !== 'ground') return false;
+    return this.dir * Math.sin(this.point().th) > 0.03;
+  }
+
   zoneAvailable(): boolean {
     const z = this.currentZone();
-    return z !== null && !this.zoneUsed.has(z) && this.speed > 0.5;
+    return z !== null && !this.zoneUsed.has(`${this.lane}:${z}`) && this.speed > 0.5 && this.climbing();
   }
 
   /** Rider straightens their legs. Adds work inside a pump zone, scrubs outside. */
   pump(): 'pump' | 'scrub' | 'none' {
-    if (this.mode !== 'ground' || this.speed < 0.3) return 'none';
+    if (this.mode !== 'ground' || this.speed < 0.5) return 'none';
     const z = this.currentZone();
-    if (z !== null && !this.zoneUsed.has(z)) {
+    if (z !== null && this.zoneAvailable()) {
       const w = this.mass * G * PUMP_LIFT;
-      this.zoneUsed.add(z);
+      this.zoneUsed.add(`${this.lane}:${z}`);
       this.addKinetic(w);
       this.work += w;
       this.pumps++;
@@ -217,22 +223,16 @@ export class Sim {
     return 'scrub';
   }
 
+  /**
+   * A hop: the legs do work ½·m·v_pop² and the landing turns exactly that into
+   * heat and sound. The board stays on its line (no free airtime above rough
+   * ground), so an ollie never changes Ep + Ek.
+   */
   ollie(): boolean {
-    if (this.mode !== 'ground' || this.resting) return false;
-    const p = this.point();
-    const tx = Math.cos(p.th) * this.dir;
-    const ty = Math.sin(p.th) * this.dir;
-    // Normal pointing out of the ramp surface (left of +s tangent).
-    const nx = -Math.sin(p.th);
-    const ny = Math.cos(p.th);
+    if (this.mode !== 'ground' || this.resting || this.speed < 0.3) return false;
     const w = 0.5 * this.mass * OLLIE_POP * OLLIE_POP;
     this.work += w;
-    this.vx = this.speed * tx + OLLIE_POP * nx;
-    this.vy = this.speed * ty + OLLIE_POP * ny;
-    this.x = p.x;
-    this.y = p.y;
-    this.mode = 'air';
-    this.airTime = 0;
+    this.addHeat('landing', w);
     this.events.push({ type: 'ollie', work: w });
     return true;
   }
@@ -263,11 +263,20 @@ export class Sim {
       this.events.push({ type: 'laneBlocked' });
       return;
     }
-    // Same height and slope on both lanes, so energy is unchanged.
+    // Keep Ep + Ek exactly: any tiny height difference is paid from (or added to) speed.
+    const eMech = this.mechanical();
+    const q = evalPiece(this.track.lanes[target].pieces[hit.piece], hit.s);
+    const ek = eMech - this.mass * G * q.y;
+    if (ek < 0) {
+      this.events.push({ type: 'laneBlocked' });
+      return;
+    }
     this.lane = target;
     this.piece = hit.piece;
     this.s = hit.s;
+    this.speed = Math.sqrt((2 * ek) / this.mass);
     this.inZone = null;
+    this.syncFromGround();
     this.events.push({ type: 'lane', lane: target });
   }
 
@@ -389,7 +398,7 @@ export class Sim {
     this.syncFromGround();
     const z = this.currentZone();
     if (z !== this.inZone) {
-      if (this.inZone !== null) this.zoneUsed.delete(this.inZone);
+      if (this.inZone !== null) this.zoneUsed.delete(`${this.lane}:${this.inZone}`);
       this.inZone = z;
     }
     if (hitEnd !== null) this.pieceEnd(hitEnd === 1 ? piece.finishEnd : piece.startEnd);
@@ -513,6 +522,7 @@ export class Sim {
     this.mode = 'ground';
     this.resting = false;
     this.inZone = null;
+    this.zoneUsed.clear();
     this.events.push({ type: 'land', vn: Math.max(0, vn), heat: lost });
     this.syncFromGround();
     this.lastSurf = p.surf;
