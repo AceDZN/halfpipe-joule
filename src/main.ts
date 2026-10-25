@@ -360,7 +360,8 @@ function showPredictCard() {
   const light = run.massRuns[0];
   const c = hud.showCard(
     `<h2>עכשיו עם תיק כבד 🎒</h2>
-     <p>בריצה הקודמת הגעתם לגובה ${ltr(`${(light.turnY ?? 0).toFixed(2)} m`)}. עכשיו על הגב תיק של ${ltr(`${l.backpack} kg`)}: ${ltr(`m = ${l.mass + (l.backpack ?? 0)} kg`)} — יש יותר ג'ולים בהתחלה.</p>
+     <p>בריצה הקודמת הגעתם לגובה ${ltr(`${(light.turnY ?? 0).toFixed(2)} m`)}.</p>
+     <p>עכשיו יש על הגב תיק של ${ltr(`${l.backpack} kg`)}, ולכן המסה היא ${ltr(`${l.mass + (l.backpack ?? 0)} kg`)} — ויש יותר ג'ולים בהתחלה.</p>
      <p><b>לאיזה גובה תגיעו הפעם?</b></p>
      <div class="choices">
        <button class="btn ghost" data-p="higher">גבוה יותר</button>
@@ -557,12 +558,12 @@ window.addEventListener('keydown', (e) => {
   if (handled) e.preventDefault();
 });
 window.addEventListener('keyup', (e) => keysDown.delete(e.code));
-window.addEventListener('blur', () => {
-  if (!inMenu && !paused && run.phase === 'riding') togglePause();
-});
-document.addEventListener('visibilitychange', () => {
-  if (document.hidden && !inMenu && !paused && run.phase === 'riding') togglePause();
-});
+// Auto-pause when the tab goes to the background (not under deterministic test stepping).
+const autoPause = () => {
+  if (!manualTime && !inMenu && !paused && run.phase === 'riding') togglePause();
+};
+window.addEventListener('blur', autoPause);
+document.addEventListener('visibilitychange', () => document.hidden && autoPause());
 
 hud.btnMute.addEventListener('click', () => action('mute'));
 hud.btnPause.addEventListener('click', () => action('pause'));
@@ -762,6 +763,10 @@ function updateCamera(dt: number) {
       const mid = vis.toWorld((l.extentX[0] + l.extentX[1]) / 2, 0, 1);
       desiredLook.copy(mid).setY(1);
       desiredPos.copy(vis.toWorld(l.extentX[0] - 6, 0, 1)).setY(9);
+    } else if (run.phase !== 'riding' && !ready) {
+      // Run over: swing to the side so the ramp and the skater's height read clearly.
+      desiredLook.copy(p).addScaledVector(fwd, -1).setY(Math.max(1.2, p.y * 0.7));
+      desiredPos.copy(p).addScaledVector(vis.side, -9).addScaledVector(fwd, -5).setY(p.y + 2.2);
     } else {
       desiredPos.copy(p).addScaledVector(fwd, -5.4).setY(p.y + 1.6);
       desiredLook.copy(p).addScaledVector(fwd, 7).setY(p.y * 0.6 + 0.6);
@@ -793,7 +798,10 @@ function updateVisuals(dt: number) {
   skater.root.position.copy(pos);
   const yaw = PLACEMENTS[l.id].yaw;
   skater.root.rotation.set(0, -yaw, 0);
+  // Chase levels: turn the rider toward the direction of travel so the camera sees their back.
+  skater.setFacing(l.camera === 'chase' ? Math.PI : 0.35);
   skater.setSlope(th);
+  skater.setBackpack(run.backpack);
   skater.update(dt);
   // Pump zones glow.
   const t = performance.now() / 1000;
@@ -907,7 +915,7 @@ function updateHud() {
     l.starts.forEach((st, i) => {
       const lane = l.track.lanes[st.lane];
       const p = evalPiece(lane.pieces[st.piece], st.s);
-      const pp = project(vis.toWorld(p.x - 0.4, p.y + 2.2, st.lane));
+      const pp = project(vis.toWorld(p.x - 0.6, p.y + (l.script === "gap" ? 0.35 : 2.2), st.lane));
       const text = l.script === 'gap' ? ltr(`Δh = ${st.dropH} m`) : ['קו א', 'קו ב', 'קו ג'][i];
       hud.label(`start-${i}`, pp.x, pp.y, text, i === run.startIndex ? 'sel' : '', !pp.behind);
     });

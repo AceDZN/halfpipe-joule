@@ -211,7 +211,7 @@ function buildMass(): LevelDef {
 export const L3 = {
   towerH: 3.0,
   flatLen: 34,
-  targetH: 2.45,
+  targetH: 2.25,
   lanes: [
     // [surface, length] runs along the flat, per lane (z from right to left)
     [['smooth', 12], ['sand', 10], ['smooth', 12]],
@@ -388,7 +388,7 @@ function buildGap(): LevelDef {
     goal: { xMin: landEnd, xMax: landEnd + 20, yMin: -0.05 },
     collectibles: [],
     hints: { energyLine: false, ringNumbers: true, pumpGlow: false, formulas: true },
-    camera: 'chase',
+    camera: 'side',
     floorY: 0.0,
     laneSwitch: 'start',
     pumpAllowed: false,

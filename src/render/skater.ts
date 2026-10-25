@@ -122,6 +122,48 @@ export class SkaterVisual {
   }
 
   boardModel: THREE.Object3D | null = null;
+  private backpack: THREE.Object3D | null = null;
+  private wantBackpack = false;
+
+  /** The heavy red backpack (mass level). Rides on the spine bone when rigged. */
+  setBackpack(on: boolean) {
+    if (on === this.wantBackpack && (!on || this.backpack)) return;
+    this.wantBackpack = on;
+    if (!on) {
+      if (this.backpack) this.backpack.visible = false;
+      return;
+    }
+    if (this.backpack) {
+      this.backpack.visible = true;
+      return;
+    }
+    loadModel('backpack').then((m) => {
+      if (!m || this.backpack) return;
+      const pack = m.clone();
+      const holder = new THREE.Group();
+      holder.add(pack);
+      let spine: THREE.Object3D | null = null;
+      this.rider.traverse((o) => {
+        if (!spine && /spine2$/i.test(o.name)) spine = o;
+      });
+      if (spine) {
+        // Bone space is in the rig's (scaled) units: undo the model scale.
+        const s = (spine as THREE.Object3D).getWorldScale(new THREE.Vector3()).x || 1;
+        holder.scale.setScalar(0.5 / s);
+        holder.position.set(0, -0.1 / s, -0.22 / s);
+        (spine as THREE.Object3D).add(holder);
+      } else {
+        holder.scale.setScalar(0.45);
+        holder.position.set(0, 0.95, -0.25);
+        this.rider.add(holder);
+      }
+      holder.traverse((o) => {
+        if ((o as THREE.Mesh).isMesh) o.castShadow = true;
+      });
+      this.backpack = holder;
+      holder.visible = this.wantBackpack;
+    });
+  }
 
   private useRig(m: THREE.Group | null) {
     if (!m) return;
@@ -172,10 +214,19 @@ export class SkaterVisual {
     next.reset().fadeIn(0.18).play();
   }
 
+  private facing = 0;
+
   /** Board follows the ramp; the rider leans only part of the way (balance). */
   setSlope(th: number) {
     this.boardPivot.rotation.z = th;
-    this.riderPivot.rotation.z = th * 0.55;
+    this.riderPivot.rotation.set(0, 0, 0);
+    this.riderPivot.rotateZ(th * 0.55);
+    this.riderPivot.rotateY(this.facing);
+  }
+
+  /** Extra yaw for the rider: 0 = sideways stance facing the side camera. */
+  setFacing(a: number) {
+    this.facing = a;
   }
 
   get pose() {

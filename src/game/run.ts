@@ -91,6 +91,8 @@ export class LevelRun {
   slowmoUsed = false;
   ledgeSpeed: number | null = null;
   vMax = 0;
+  private maxX = -Infinity;
+  private maxYEnd = -Infinity;
   private turnY: number | null = null;
   private log: LogEntry[] = [];
   private clock = 0;
@@ -137,6 +139,8 @@ export class LevelRun {
     this.turnY = null;
     this.ledgeSpeed = null;
     this.vMax = 0;
+    this.maxX = -Infinity;
+    this.maxYEnd = -Infinity;
     this.passesWithoutPump = 0;
   }
 
@@ -344,6 +348,17 @@ export class LevelRun {
       }
       this.finish(true, 'goal');
       return;
+    }
+    // Line levels: rolling back from the final ramp (also after a little hop at the lip) is a miss.
+    if ((lvl.script === 'surfaces' || lvl.script === 'transfer') && lvl.goal) {
+      this.maxX = Math.max(this.maxX, s.x);
+      if (s.x > lvl.goal.xMin - 8) this.maxYEnd = Math.max(this.maxYEnd, s.y);
+      if (this.maxX > lvl.goal.xMin - 8 && s.x < this.maxX - 1.5) {
+        if (this.turnY === null) this.turnY = this.maxYEnd;
+        this.feedback.push({ kind: 'short', value: lvl.goal.yMin - this.turnY, text: 'לא הספיק', x: this.maxX, y: lvl.goal.yMin - 0.4 });
+        this.finish(false, 'short');
+        return;
+      }
     }
     if (s.mode === 'ground' && s.resting) {
       if (lvl.script === 'mass') this.finish(true, 'runDone');
