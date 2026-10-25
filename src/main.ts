@@ -5,7 +5,7 @@ import { LevelRun, type Feedback, type RunSummary } from './game/run';
 import { buildLevelVisual, starMesh, type LevelVisual, type Placement } from './render/ramps';
 import { SkaterVisual } from './render/skater';
 import { dashTexture, softDot } from './render/textures';
-import { buildWorld, type World } from './render/world';
+import { buildWorld, loadModel, type World } from './render/world';
 import { G, MU, SURFACE_HE } from './sim/constants';
 import { buildLevels, type LevelDef } from './sim/levels';
 import { evalPiece, type Surface } from './sim/track';
@@ -60,6 +60,25 @@ for (let x = -60; x <= 140; x += 14) palmSpots.push(new THREE.Vector3(x, 0, 33 +
 for (let x = -60; x <= 140; x += 16) palmSpots.push(new THREE.Vector3(x + 5, 0, 56));
 const towerSpots = [-70, -10, 45, 105].map((x) => new THREE.Vector3(x, -0.35, -33));
 const world: World = buildWorld(scene, palmSpots, towerSpots);
+
+// Tripo kiosk + bench set pieces along the promenade.
+loadModel('kiosk').then((m) => {
+    if (!m) return;
+    for (const [x, z, r] of [
+      [16, -9, 0.2],
+      [52, 33, -0.3],
+      [-48, -8, 0.1],
+    ] as const) {
+      const k = m.clone();
+      k.scale.setScalar(4.2);
+      k.position.set(x, 0, z);
+      k.rotation.y = r;
+      k.traverse((o) => {
+        if ((o as THREE.Mesh).isMesh) o.castShadow = o.receiveShadow = true;
+      });
+      scene.add(k);
+    }
+});
 
 const visuals = new Map<string, LevelVisual>();
 for (const l of levels) {
@@ -810,8 +829,13 @@ function updateVisuals(dt: number) {
     const isCur = z.lane === s.lane;
     const lockedOrHidden = !l.hints.pumpGlow || run.pumpLocked || !l.pumpAllowed;
     const avail = isCur && s.zoneAvailable();
-    mat.opacity = lockedOrHidden ? (l.script === 'transfer' ? 0.0 : 0.0) : avail ? 0.75 + Math.sin(t * 10) * 0.15 : 0.3 + Math.sin(t * 3) * 0.08;
+    mat.opacity = lockedOrHidden ? 0 : avail ? 0.6 + Math.sin(t * 10) * 0.15 : 0.22 + Math.sin(t * 3) * 0.06;
     z.mesh.visible = !lockedOrHidden;
+    const rm = z.ring.material as THREE.MeshBasicMaterial;
+    rm.opacity = avail ? 1 : 0.55 + Math.sin(t * 3) * 0.15;
+    z.ring.visible = !lockedOrHidden && isCur;
+    const sc = avail && !document.body.classList.contains('reduced') ? 1 + Math.sin(t * 10) * 0.04 : 1;
+    z.ring.scale.set(sc, sc, 1);
   }
   // Stars.
   for (const st of starMeshes) {
@@ -846,6 +870,26 @@ function updateVisuals(dt: number) {
   void MU;
 }
 
+function speedLines(W: number, H: number, speed: number) {
+  if (document.body.classList.contains('reduced') || speed < 6) return;
+  const a = Math.min(0.5, (speed - 6) * 0.12);
+  const t = performance.now() / 1000;
+  og.save();
+  og.strokeStyle = `rgba(255,255,255,${a})`;
+  og.lineWidth = 2;
+  for (let i = 0; i < 14; i++) {
+    const ang = i * 2.39996 + Math.floor(t * 12 + i) * 0.7;
+    const r0 = Math.max(W, H) * (0.42 + ((t * 3 + i * 0.37) % 1) * 0.12);
+    const cx = W / 2;
+    const cy = H * 0.45;
+    og.beginPath();
+    og.moveTo(cx + Math.cos(ang) * r0, cy + Math.sin(ang) * r0 * 0.6);
+    og.lineTo(cx + Math.cos(ang) * (r0 + 120), cy + Math.sin(ang) * (r0 + 120) * 0.6);
+    og.stroke();
+  }
+  og.restore();
+}
+
 function drawOverlay() {
   const W = overlay.clientWidth;
   const H = overlay.clientHeight;
@@ -854,6 +898,7 @@ function drawOverlay() {
   const l = level();
   const s = run.sim;
   const en = s.energies();
+  if (l.camera === 'chase' && run.phase === 'riding') speedLines(W, H, en.speed);
   // Energy ring around the skater.
   const c = project(skaterWorld(0.85));
   const edge = project(skaterWorld(0.85).add(new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0).multiplyScalar(1.15)));

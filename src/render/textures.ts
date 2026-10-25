@@ -280,3 +280,27 @@ export function frondTexture(): THREE.Texture {
   cache.set('frond', t);
   return t;
 }
+
+/** Gold dashed double ellipse for the pump zone (alpha). */
+export function pumpRingTexture(): THREE.Texture {
+  const hit = cache.get('pumpRing');
+  if (hit) return hit;
+  const [c, g] = canvas(512, 256);
+  g.clearRect(0, 0, 512, 256);
+  g.shadowColor = '#ffb000';
+  g.shadowBlur = 18;
+  for (const [rx, ry, w, dash] of [
+    [236, 110, 14, [34, 18]],
+    [196, 86, 7, [18, 14]],
+  ] as const) {
+    g.setLineDash(dash as unknown as number[]);
+    g.strokeStyle = '#ffd23f';
+    g.lineWidth = w;
+    g.beginPath();
+    g.ellipse(256, 128, rx, ry, 0, 0, Math.PI * 2);
+    g.stroke();
+  }
+  const t = finish(c, false);
+  cache.set('pumpRing', t);
+  return t;
+}
