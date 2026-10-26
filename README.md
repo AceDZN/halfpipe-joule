@@ -9,30 +9,28 @@ Grades 7–9: energy forms, transformations and conservation (grade 7 ch. 4), Ep
 ```bash
 npm install
 npm run dev        # http://localhost:5199 (strict port)
-npm test           # vitest: physics + level solvability (24 tests)
+npm test           # vitest: physics, level solvability, review exploits (34 tests)
 npm run build      # static bundle in dist/ (relative base, works offline)
 npm run preview    # http://localhost:4199
 ```
 
 URL params: `?level=N` (1–6) jumps straight into a level.
 
-## Controls
+## Controls — one key
 
-| Action | Keyboard | Gamepad | Touch |
+| Action | Keyboard | Touch / mouse | Gamepad |
 |---|---|---|---|
-| Drop in | ↓ / S / Space | A | "↓ דרופ־אין" |
-| Pump (only in the glowing curve at the bottom) | ↑ / W | A / RT | big "↑ שאיבה" (glows when it's the moment) |
-| Change lane / pick a tower or line before dropping | ← → / A D | d-pad / left stick | ‹ › |
-| Ollie (while rolling) | Space | B | "קפיצה" |
-| Trick in the air (style only) | Shift / X / E | X | "טריק" |
-| Restart | R | Y | ↻ |
-| Pause / mute | P or Esc / M | Start | top-bar buttons |
+| **Go**: drop in, then pump on each gold curve; on a card, continue | **Space** (also Enter, ↑, ↓) | tap / click anywhere, or the big yellow button | any face button |
+| Pick a lane / tower / line (only before dropping in, on levels with a choice) | ← → | tap its label, or ‹ › | d-pad / stick |
+| Restart · pause · mute | R · P / Esc · M | top-bar buttons | Y · Start |
+
+A press arms the pump; it fires the moment the skater climbs a gold curve (one pump per curve, the physical limit), so timing is forgiving and wrong presses cost nothing. Redesigned to one key after the first playtest by the user (26 Oct 2026): separate carve/pump/ollie/trick keys were confusing.
 
 ## Levels (implemented)
 
 1. **הדרופ הראשון** — drop in, watch Ep ⇄ Ek, fall short of a higher deck (heat), then pump and make it.
 2. **כבד או קל?** — collect the star; predict what a 25 kg backpack changes; same height, same speed, more joules.
-3. **משטחים רעים** — three lanes of smooth concrete, sand and rough asphalt; carve a smooth zig-zag to reach the ramp.
+3. **משטחים רעים** — pick one of three lanes before dropping in: rough asphalt, smooth concrete with a sand patch, or all smooth concrete; only the smooth lane reaches the ramp.
 4. **שאיבה בקערה** — reach a coping higher than your start, only by pumping in rhythm.
 5. **מהירות בריבוע** (grade 9, live formulas) — pick the drop tower that gives enough Ek to clear the gap: 2× speed needs 4× height. Braking strip shows stopping distance.
 6. **קו הטיילת** — transfer level with no hints: choose one of three lines; numbers revealed after the run.

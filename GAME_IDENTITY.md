@@ -4,22 +4,19 @@
 A sunset skateboarding game on the Tel Aviv promenade where you can **see your energy**: a ring around the skater shows height energy, motion energy and heat in joules, live — and you can never ride higher than your energy allows.
 
 ## The first 10 seconds (no reading needed)
-1. Camera shows a white concrete mini-ramp at golden hour, the sea and palm trees behind. The skater stands on the left deck, board tipped over the coping. A big pulsing key hint: **↓ / רווח — דרופ־אין**.
+1. Camera shows a white concrete mini-ramp at golden hour, the sea and palm trees behind. The skater stands on the left deck, board tipped over the coping. A big pulsing key hint: **רווח — יוצאים!** (one key for everything).
 2. One press: the skater drops in. The ring around them swaps colour from blue (height) to orange (speed) at the bottom and back to blue on the far side. A glowing horizontal **energy line** across the ramp shows the highest point the current energy can reach.
 3. The far deck has a glowing **target coping** (gold flag). The skater rises… stops just below it (the energy line sits a hair under the coping: some energy became red heat) and rolls back.
-4. A glowing **pump ring** lights up at the bottom of the curve with **↑ שאיבה**. One well-timed press: "+150 J" pops out with a muscle icon, the energy line jumps above the coping, the skater rolls onto the deck — confetti, cheer, ★.
+4. The curves glow **gold** and the hint says **רווח — עכשיו! 💪** (with a moment of slow motion the first time). One press: "+150 J" pops out with a muscle icon, the energy line jumps above the coping, the skater rolls onto the deck — confetti, cheer, ★.
 
-## Verbs (dead simple)
-| Action | Keyboard | Gamepad | Touch |
+## Verbs — one key (after the user's first playtest)
+| Action | Keyboard | Touch / mouse | Gamepad |
 |---|---|---|---|
-| Drop in / start | ↓, S or Space | A | big "דרופ־אין" button |
-| Pump (only in the glowing ring at the bottom of a curve) | ↑ or W | A / RT | big round "שאיבה" button (right) |
-| Carve between lanes | ← → or A D | left stick | two arrow buttons (left) |
-| Ollie | Space (while rolling) | B | "אולי" button |
-| Trick in the air (style only, no energy) | Shift / X | X | "טריק" button |
-| Restart | R | Y | ↻ button |
+| Go: drop in, then pump on each gold curve | Space (Enter, ↑, ↓) | tap anywhere / big yellow button | any face button |
+| Choose a lane, tower or line — only before the drop | ← → | tap its label / ‹ › | d-pad |
+| Restart | R | ↻ | Y |
 
-Pumping at the wrong moment scrubs a little speed (bad technique): mashing does not win.
+A press arms the pump and it fires when the skater climbs a gold curve (at most one per curve). Missed presses cost nothing. No ollie, no trick button, no carving mid-run.
 
 ## Camera
 - Halfpipe / bowl levels: wide three-quarter side view that follows gently, so heights are always readable against the ramp.
