@@ -35,6 +35,16 @@ const TAKEAWAY: Record<string, string> = {
     'בחרתם קו חלק וניצלתם את הקערות לשאיבה: מעט אנרגיה הלכה לחום, והעבודה מהשרירים השלימה את החסר.',
 };
 
+/** One line under the stars on the done card: how to earn all three. */
+const STAR_RULES: Record<LevelDef['script'], string> = {
+  firstDrop: '★ סיום · ★ בלי לנסות שוב · ★ עם 3 שאיבות לכל היותר',
+  mass: '★ שתי הריצות · ★ ניחוש נכון · ★ כוכב בשתי הריצות',
+  surfaces: '★ סיום · ★ בניסיון הראשון · ★ כמעט בלי חום מחול ואספלט',
+  pump: '★ סיום · ★ בלי לנסות שוב · ★ עם 8 שאיבות לכל היותר',
+  gap: '★ סיום · ★ המגדל הנכון בבחירה הראשונה · ★ עד ניסיון שגוי אחד',
+  transfer: '★ סיום · ★ בניסיון הראשון · ★ הקו הנכון כבר בבחירה הראשונה',
+};
+
 const canvas = document.getElementById('scene') as HTMLCanvasElement;
 const overlay = document.getElementById('overlay') as HTMLCanvasElement;
 const og = overlay.getContext('2d')!;
@@ -356,7 +366,7 @@ function failText(sum: RunSummary): string {
       if (!l.gapNeed) return 'נפילה! כל אנרגיית התנועה הפכה בבת אחת לחום ולקול.';
       const v = sum.ledgeSpeed ?? 0;
       const need = l.gapNeed.v;
-      return `בקצה הייתה מהירות ${ltr(`v = ${v.toFixed(1)} m/s`)} (${ltr(`Ek = ${Math.round(0.5 * sum.mass * v * v)} J`)}). צריך ${ltr(`${need} m/s`)} — בערך פי ${(need / Math.max(0.1, v)).toFixed(1)} יותר מהר. כמה פעמים יותר אנרגיית תנועה צריך? בחרו מגדל ← →`;
+      return `<b>נפלתם לחול — צריך מגדל גבוה יותר!</b><br>בקצה הייתה מהירות ${ltr(`v = ${v.toFixed(1)} m/s`)} (${ltr(`Ek = ${Math.round(0.5 * sum.mass * v * v)} J`)}). צריך ${ltr(`${need} m/s`)} — בערך פי ${(need / Math.max(0.1, v)).toFixed(1)} יותר מהר. כמה פעמים יותר אנרגיית תנועה צריך? בחרו מגדל ← →`;
     }
     case 'overshoot': {
       const v = sum.ledgeSpeed ?? 0;
@@ -364,6 +374,8 @@ function failText(sum: RunSummary): string {
     }
     case 'bail':
       return 'נפילה! כל אנרגיית התנועה הפכה בבת אחת לחום ולקול.';
+    case 'stalled':
+      return 'בלי שאיבה כל מעבר מאבד קצת אנרגיה לחום — והגובה רק יורד. לחצו <b>רווח</b> (או הקישו) בכל פעם שאתם בעקומה הזהובה.';
     case 'rest':
       return 'נעצרתם — כל אנרגיית התנועה הפכה לחום.';
     case 'runDone':
@@ -448,6 +460,7 @@ function showDoneCard() {
   const c = hud.showCard(
     `<h2>${last ? 'סיימתם את הטיילת! 🏁' : 'יש! 🎉'} <span style="color:var(--gold)">${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}</span></h2>
      ${extra}
+     <p style="font-size:14px;color:var(--muted)">${STAR_RULES[l.script]}</p>
      <div class="takeaway">${TAKEAWAY[l.id]}</div>
      ${last ? `<p>סך הכול ${total} / ${levels.length * 3} כוכבים</p>` : ''}
      <button class="btn" data-a="next">${last ? 'לתפריט' : 'לשלב הבא ←'}</button>
@@ -531,15 +544,20 @@ function go() {
   if (cardFor === 'result') return retry();
   if (cardFor === 'done') return nextLevel();
   if (cardFor === 'predict') return;
-  if (run.phase === 'ready') run.drop();
-  else if (run.phase === 'riding') run.pump();
+  if (run.phase === 'ready') {
+    run.drop();
+    hud.floats.querySelectorAll('.goal-banner').forEach((b) => b.remove());
+  } else if (run.phase === 'riding') run.pump();
 }
 
 function action(a: Act) {
   sound.unlock();
   if (a === 'mute') return setMuted(!sound.muted);
   if (a === 'pause') return togglePause();
-  if (paused) return;
+  if (paused) {
+    if (a === 'go') togglePause();
+    return;
+  }
   if (a === 'go') return go();
   if (inMenu) return;
   if (a === 'retry') {
@@ -641,6 +659,7 @@ function pollPad() {
 }
 
 // ------------------------------------------------------------------ feedback
+let lastFizzle = -1e9;
 function onFeedback(f: Feedback) {
   // Above the energy ring, so pop-ups don't cover its labels.
   const head = project(skaterWorld(2.7));
@@ -666,10 +685,13 @@ function onFeedback(f: Feedback) {
     case 'pumpUnlocked':
       break;
     case 'armed':
-      hud.floatText(head.x, head.y, '💪 מוכן…', 'work');
+      // The yellow button / key hint light up instead of more floating text.
       break;
     case 'fizzle':
-      hud.floatText(head.x, head.y, 'שואבים רק בעקומה הזהובה', 'bad');
+      if (performance.now() - lastFizzle > 3000) {
+        lastFizzle = performance.now();
+        hud.floatText(head.x, head.y, 'שואבים רק בעקומה הזהובה', 'bad');
+      }
       break;
     case 'hintPump':
       hud.floatText(overlay.clientWidth / 2, overlay.clientHeight * 0.32, 'רווח בכל עקומה זהובה = שאיבה!', 'work');
@@ -965,7 +987,8 @@ function updateHud() {
   else if (run.phase === 'ready') {
     const bag = run.backpack ? '🎒 עם תיק · ' : '';
     if (run.mustUseFirstTower) hint = `${K} — נסו קודם מהמגדל הנמוך`;
-    else if (choosing) hint = `<span class="k">← →</span> או הקישו על שלט — בחרו · ${K} — יוצאים!`;
+    else if (choosing)
+      hint = document.body.classList.contains('is-touch') ? `בחרו שלט · ואז ${K} — יוצאים!` : `<span class="k">← →</span> או לחיצה על שלט — בחרו · ${K} — יוצאים!`;
     else hint = `${bag}${K} — יוצאים!`;
   } else if (run.phase === 'riding') {
     if (l.script === 'firstDrop' && run.pumpLocked) hint = 'צפו בטבעת: ▲ גובה הופך ל־» תנועה, וחוזר';
@@ -982,7 +1005,7 @@ function updateHud() {
       const lane = l.track.lanes[st.lane];
       const p = evalPiece(lane.pieces[st.piece], st.s);
       const pp = project(vis.toWorld(p.x - 0.6, p.y + (l.script === "gap" ? 0.35 : 2.2), st.lane));
-      const names = l.script === 'surfaces' ? ['נתיב א', 'נתיב ב', 'נתיב ג'] : ['קו א', 'קו ב', 'קו ג'];
+      const names = l.script === 'surfaces' ? ['בטון + חול', 'אספלט מחוספס', 'בטון חלק'] : ['קו א', 'קו ב', 'קו ג'];
       const text = l.script === 'gap' ? ltr(`Δh = ${st.dropH} m`) : names[i];
       hud.label(`start-${i}`, pp.x, pp.y, text, i === run.startIndex ? 'sel' : '', !pp.behind, i);
     });

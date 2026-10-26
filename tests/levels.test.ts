@@ -166,3 +166,17 @@ describe('2 · star placement', () => {
     expect(p.y).toBeLessThan(1.85);
   });
 });
+
+describe('one-key flow', () => {
+  test('a pump level ends quickly when the player stops pumping (no minute of rocking)', () => {
+    for (const l of [l1, l4]) {
+      const run = new LevelRun(l);
+      run.drop();
+      let t = 0;
+      for (; t < 60 && run.phase === 'riding'; t += 1 / 60) run.update(1 / 60);
+      expect(run.phase, l.id).toBe('result');
+      expect(run.lastSummary!.reason).toBe('stalled');
+      expect(t, l.id).toBeLessThan(16);
+    }
+  });
+});

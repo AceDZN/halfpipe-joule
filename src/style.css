@@ -849,6 +849,10 @@ kbd {
     top: 92px;
     font-size: 16px;
     padding: 7px 14px;
+    white-space: normal;
+    text-align: center;
+    width: max-content;
+    max-width: calc(100vw - 24px);
   }
   .bank {
     width: 196px;
@@ -859,6 +863,15 @@ kbd {
   }
   .bank h3 {
     display: none;
+  }
+  .bank {
+    top: 136px !important;
+    width: 168px !important;
+  }
+  .bank .readouts,
+  .bank .work,
+  .formula {
+    display: none !important;
   }
   .bank .col {
     height: 70px;

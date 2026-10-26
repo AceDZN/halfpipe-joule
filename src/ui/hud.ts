@@ -31,8 +31,8 @@ export class Hud {
   readonly btnRestart: HTMLButtonElement;
   readonly btnMenu: HTMLButtonElement;
   readonly touch = el('div', 'touch');
-  readonly tLeft = el('button', 'tbtn t-left interactive', '‹');
-  readonly tRight = el('button', 'tbtn t-right interactive', '›');
+  readonly tLeft = el('button', 'tbtn t-left interactive', '<span dir="ltr">◀</span>');
+  readonly tRight = el('button', 'tbtn t-right interactive', '<span dir="ltr">▶</span>');
   /** The one game button (touch): drop in, then pump. */
   readonly tGo = el('button', 'tbtn t-go interactive', 'יוצאים!');
   private bankParts: { ep: HTMLElement; ek: HTMLElement; heat: HTMLElement; vals: HTMLElement[]; read: HTMLElement; work: HTMLElement; formula: HTMLElement; note: HTMLElement };
@@ -153,8 +153,12 @@ export class Hud {
     if (start !== undefined) l.dataset.start = String(start);
     l.className = `label3d ${cls}`;
     if (l.innerHTML !== html) l.innerHTML = html;
-    l.style.left = `${x}px`;
-    l.style.top = `${y}px`;
+    // Keep labels on screen (pinned to the edges) and below the top bar.
+    const W = this.root.clientWidth;
+    const H = this.root.clientHeight;
+    const half = Math.min(110, l.offsetWidth / 2 || 60);
+    l.style.left = `${Math.min(Math.max(x, half + 6), W - half - 6)}px`;
+    l.style.top = `${Math.min(Math.max(y, 112), H - 80)}px`;
     l.hidden = !visible;
   }
 

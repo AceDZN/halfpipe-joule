@@ -11,7 +11,7 @@ export type Prediction = 'higher' | 'same' | 'lower';
 
 export interface RunSummary {
   ok: boolean;
-  reason: 'goal' | 'short' | 'rest' | 'bail' | 'pit' | 'overshoot' | 'runDone';
+  reason: 'goal' | 'short' | 'rest' | 'bail' | 'pit' | 'overshoot' | 'runDone' | 'stalled';
   e0: number;
   work: number;
   heatBy: Partial<Record<HeatKind, number>>;
@@ -99,6 +99,8 @@ export class LevelRun {
   ledgeSpeed: number | null = null;
   vMax = 0;
   private maxX = -Infinity;
+  private stalls = 0;
+  private pumpsAtTurn = 0;
   private maxYEnd = -Infinity;
   private turnY: number | null = null;
   turnX: number | null = null;
@@ -150,6 +152,8 @@ export class LevelRun {
     this.vMax = 0;
     this.armedAt = null;
     this.maxX = -Infinity;
+    this.stalls = 0;
+    this.pumpsAtTurn = 0;
     this.maxYEnd = -Infinity;
     this.passesWithoutPump = 0;
   }
@@ -340,6 +344,17 @@ export class LevelRun {
       this.turnX = x;
     }
     if (lvl.pumpAllowed && farSide) this.passesWithoutPump++;
+    // Pump levels: swinging back and forth without pumping only loses energy.
+    // After three turns with no pump, end the ride instead of rocking for a minute.
+    if ((lvl.script === 'firstDrop' || lvl.script === 'pump') && !this.pumpLocked) {
+      if (this.sim.pumps === this.pumpsAtTurn) this.stalls++;
+      else this.stalls = 0;
+      this.pumpsAtTurn = this.sim.pumps;
+      if (this.stalls >= 3) {
+        this.finish(false, 'stalled');
+        return;
+      }
+    }
     switch (lvl.script) {
       case 'firstDrop':
         if (farSide && goal && y < goal.yMin) {
@@ -485,7 +500,7 @@ export class LevelRun {
     switch (this.level.script) {
       case 'firstDrop':
         if (this.fails === 0) stars++;
-        if (s.scrubs === 0) stars++;
+        if (s.pumps <= 3) stars++;
         break;
       case 'mass':
         if (this.prediction === 'same') stars++;
@@ -497,7 +512,7 @@ export class LevelRun {
         break;
       case 'pump':
         if (this.fails === 0) stars++;
-        if (s.scrubs <= 1) stars++;
+        if (s.pumps <= 8) stars++;
         break;
       case 'gap':
         // First run from the smallest tower is a forced demo; the first free choice counts.

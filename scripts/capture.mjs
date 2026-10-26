@@ -117,5 +117,11 @@ async function until(page, pred, maxMs = 20000, step = 50) {
   await shot(p, '05-mobile');
   await p.close();
 }
+{
+  const p = await open(3, { width: 390, height: 844 }, { hasTouch: true, isMobile: true });
+  await adv(p, 3400);
+  await shot(p, '05b-mobile-lane-choice');
+  await p.close();
+}
 await browser.close();
 console.log('errors:', errors.length ? errors.join('\n') : 'none');
