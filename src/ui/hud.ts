@@ -33,10 +33,8 @@ export class Hud {
   readonly touch = el('div', 'touch');
   readonly tLeft = el('button', 'tbtn t-left interactive', '‹');
   readonly tRight = el('button', 'tbtn t-right interactive', '›');
-  readonly tPump = el('button', 'tbtn t-pump interactive', '↑<br>שאיבה');
-  readonly tOllie = el('button', 'tbtn t-ollie interactive', 'קפיצה');
-  readonly tTrick = el('button', 'tbtn t-trick interactive', 'טריק');
-  readonly tDrop = el('button', 'btn t-drop interactive', '↓ דרופ־אין');
+  /** The one game button (touch): drop in, then pump. */
+  readonly tGo = el('button', 'tbtn t-go interactive', 'יוצאים!');
   private bankParts: { ep: HTMLElement; ek: HTMLElement; heat: HTMLElement; vals: HTMLElement[]; read: HTMLElement; work: HTMLElement; formula: HTMLElement; note: HTMLElement };
   private labelPool = new Map<string, HTMLElement>();
 
@@ -81,7 +79,7 @@ export class Hud {
     };
     root.append(this.bank, this.labels, this.floats, this.replayTag, this.cardHost);
     this.replayTag.hidden = true;
-    this.touch.append(this.tLeft, this.tRight, this.tPump, this.tOllie, this.tTrick, this.tDrop);
+    this.touch.append(this.tLeft, this.tRight, this.tGo);
     root.append(this.touch, this.screenHost);
   }
 
@@ -144,14 +142,15 @@ export class Hud {
     setTimeout(() => f.remove(), 1700);
   }
 
-  /** Projected label in the scene, reused by key. */
-  label(key: string, x: number, y: number, html: string, cls = '', visible = true) {
+  /** Projected label in the scene, reused by key. `start` makes it a tappable start choice. */
+  label(key: string, x: number, y: number, html: string, cls = '', visible = true, start?: number) {
     let l = this.labelPool.get(key);
     if (!l) {
       l = el('div', 'label3d');
       this.labelPool.set(key, l);
       this.labels.append(l);
     }
+    if (start !== undefined) l.dataset.start = String(start);
     l.className = `label3d ${cls}`;
     if (l.innerHTML !== html) l.innerHTML = html;
     l.style.left = `${x}px`;

@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { LevelRun } from '../src/game/run';
 import { buildLevels } from '../src/sim/levels';
+import { evalPiece } from '../src/sim/track';
 import { runBot } from './bot';
 
 const L = buildLevels();
@@ -16,6 +17,16 @@ describe('1 · First Drop', () => {
     const r = runBot(l1, { pump: true, pumpAfterTurns: 1 });
     expect(r.result).toBe('goal');
     expect(r.sim.pumps).toBeLessThanOrEqual(3);
+  });
+  test('one key: a press before the curve arms the pump and it fires while climbing', () => {
+    const run = new LevelRun(l4);
+    run.drop();
+    run.update(0.05);
+    run.pump(); // still rolling down the wall: arms
+    expect(run.armedAt).not.toBeNull();
+    for (let i = 0; i < 120 && run.sim.pumps === 0; i++) run.update(1 / 60);
+    expect(run.sim.pumps).toBe(1);
+    expect(run.sim.scrubs).toBe(0);
   });
   test('the level controller: first pass locked, then pump → done', () => {
     const run = new LevelRun(l1);
@@ -48,7 +59,6 @@ describe('2 · Same height, any mass', () => {
       run.drop();
       for (let i = 0; i < 600 && run.phase === 'riding'; i++) run.update(1 / 60);
       expect(run.collected.has('star')).toBe(true);
-      expect(run.collected.has('high')).toBe(false);
       if (pred) {
         expect(run.phase).toBe('predict');
         run.setPrediction('same');
@@ -61,13 +71,14 @@ describe('2 · Same height, any mass', () => {
 });
 
 describe('3 · Bad surfaces', () => {
-  const f0 = l3.xMarks.flat;
-  test('the smooth zig-zag route reaches the ramp', () => {
-    const r = runBot(l3, { route: (x) => (x < f0 + 9 ? 0 : x < f0 + 23 ? 2 : 0) });
-    expect(r.result).toBe('goal');
+  test('the all-smooth lane reaches the ramp', () => {
+    expect(runBot(l3, { start: 2 }).result).toBe('goal');
   });
-  test('every single-lane line fails (asphalt middle, sand on both sides)', () => {
-    for (const lane of [0, 1, 2]) expect(runBot(l3, { route: () => lane, maxT: 25 }).result, `lane ${lane}`).not.toBe('goal');
+  test('the asphalt lane and the lane with a sand patch fail', () => {
+    for (const start of [0, 1]) expect(runBot(l3, { start, maxT: 25 }).result, `lane ${start}`).not.toBe('goal');
+  });
+  test('the first (default) lane is the rough one, so a straight drop shows the lesson', () => {
+    expect(l3.starts[l3.firstStart].lane).toBe(1);
   });
 });
 
@@ -142,5 +153,16 @@ describe('6 · Transfer: the promenade line (no hints)', () => {
       expect(runBot(l6, { start, pump: true, maxT: 45 }).result).not.toBe('goal');
       expect(runBot(l6, { start, maxT: 30 }).result).not.toBe('goal');
     }
+  });
+});
+
+describe('2 · star placement', () => {
+  test('the star sits on the far wall just below the reachable height', () => {
+    const run = new LevelRun(l2);
+    const c = run.collectibles[0];
+    const p = evalPiece(l2.track.lanes[0].pieces[c.piece], c.s);
+    expect(p.x).toBeGreaterThan(0);
+    expect(p.y).toBeGreaterThan(1.5);
+    expect(p.y).toBeLessThan(1.85);
   });
 });

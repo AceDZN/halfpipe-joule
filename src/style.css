@@ -259,6 +259,9 @@ button {
   position: absolute;
   top: 6px;
   white-space: nowrap;
+  background: rgba(10, 12, 20, 0.6);
+  border-radius: 999px;
+  padding: 0 7px;
   font-size: 18px;
   font-weight: 900;
   z-index: 2;
@@ -622,7 +625,7 @@ body.in-menu .replay-tag {
 
 .goal-banner {
   position: absolute;
-  top: 34%;
+  top: 70%;
   left: 50%;
   transform: translate(-50%, -50%);
   padding: 14px 30px;
@@ -683,37 +686,24 @@ body.is-touch .touch {
 .t-right {
   left: 104px;
 }
-.t-pump {
-  width: 112px;
-  height: 112px;
+.t-go {
+  width: 124px;
+  height: 124px;
   font-size: 22px;
   right: 330px;
   bottom: calc(20px + var(--safe-b));
   border-color: var(--gold);
-}
-.t-pump.ready {
-  background: rgba(255, 210, 63, 0.95);
+  background: rgba(255, 210, 63, 0.9);
   color: var(--ink);
-  box-shadow: 0 0 26px rgba(255, 210, 63, 0.8);
 }
-.t-ollie,
-.t-trick {
-  width: 66px;
-  height: 66px;
-  font-size: 15px;
-  right: 450px;
+.t-go.ready {
+  box-shadow: 0 0 30px rgba(255, 210, 63, 0.95);
+  transform: scale(1.08);
 }
-.t-ollie {
-  bottom: calc(20px + var(--safe-b));
-}
-.t-trick {
-  bottom: calc(96px + var(--safe-b));
-}
-.t-drop {
-  position: absolute;
-  left: 50%;
-  bottom: calc(150px + var(--safe-b));
-  transform: translateX(-50%);
+
+.label3d[data-start] {
+  pointer-events: auto;
+  cursor: pointer;
 }
 
 /* ---------------------------------------------------------- title / menu */
@@ -812,6 +802,12 @@ body.is-touch .touch {
   cursor: pointer;
 }
 
+.one-key {
+  font-size: clamp(17px, 2.2vw, 21px);
+  font-weight: 700;
+  margin: 14px 0 0;
+}
+
 .controls-help {
   margin-top: 14px;
   font-size: 15px;
@@ -884,14 +880,10 @@ kbd {
   .formula {
     font-size: 11px;
   }
-  .t-pump {
+  .t-go {
     right: 16px;
-    width: 96px;
-    height: 96px;
-  }
-  .t-ollie,
-  .t-trick {
-    right: 124px;
+    width: 108px;
+    height: 108px;
   }
   .card {
     padding: 10px 14px 12px;

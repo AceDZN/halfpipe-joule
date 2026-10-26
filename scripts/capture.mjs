@@ -85,10 +85,34 @@ async function until(page, pred, maxMs = 20000, step = 50) {
   await shot(p, '04-hud-closeup');
   await p.close();
 }
+// 06 — mass level: heavy run ready with the backpack (after the light run + prediction).
+{
+  const p = await open(2);
+  await p.keyboard.press('Space');
+  await until(p, (s) => s.phase !== 'riding');
+  await p.waitForTimeout(800);
+  await adv(p, 100);
+  await p.click('[data-p=same]');
+  await adv(p, 600);
+  await shot(p, '06-mass-backpack-ready');
+  await p.keyboard.press('Space');
+  await adv(p, 900);
+  await shot(p, '06b-mass-backpack-riding');
+  await p.close();
+}
+// 07 — lane choice before the drop (bad surfaces).
+{
+  const p = await open(3);
+  await adv(p, 3400);
+  await p.keyboard.press('ArrowRight');
+  await adv(p, 300);
+  await shot(p, '07-lane-choice');
+  await p.close();
+}
 // Phone width.
 {
   const p = await open(1, { width: 390, height: 844 }, { hasTouch: true, isMobile: true });
-  await p.tap('.t-drop').catch(() => {});
+  await p.tap('.t-go').catch(() => {});
   await adv(p, 500);
   await shot(p, '05-mobile');
   await p.close();

@@ -21,6 +21,7 @@ export interface RunSummary {
   startIndex: number;
   mass: number;
   turnY: number | null;
+  turnX: number | null;
   vMax: number;
   trail: Sim['trail'];
   lane: number;
@@ -43,7 +44,9 @@ export interface Feedback {
     | 'bonk'
     | 'launch'
     | 'drop'
-    | 'trick';
+    | 'trick'
+    | 'armed'
+    | 'fizzle';
   text?: string;
   value?: number;
   x?: number;
@@ -61,7 +64,8 @@ export interface LogEntry {
 }
 
 const LOG_KEY = 'halfpipe-joule-log-v1';
-const PUMP_BUFFER = 0.3;
+/** How long an early press waits for a climbing curve (s). */
+const ARM_WINDOW = 1.6;
 
 export class LevelRun {
   readonly level: LevelDef;
@@ -97,6 +101,7 @@ export class LevelRun {
   private maxX = -Infinity;
   private maxYEnd = -Infinity;
   private turnY: number | null = null;
+  turnX: number | null = null;
   private log: LogEntry[] = [];
   private clock = 0;
 
@@ -121,12 +126,12 @@ export class LevelRun {
       for (const e of probe.drainEvents()) if (e.type === 'turn') turnY = e.y;
     }
     const p = this.level.track.lanes[0].pieces[0];
-    const sLow = sAtY(p, turnY - 0.15, p.length * 0.6, p.length);
-    const sHigh = sAtY(p, turnY + 0.45, p.length * 0.6, p.length);
-    this.collectibles = [
-      { id: 'star', piece: 0, s: sLow, lane: null },
-      { id: 'high', piece: 0, s: sHigh, lane: null, high: true },
-    ];
+    // Walk down from the top of the far wall to the first point below the star height.
+    const yStar = turnY - 0.15;
+    let s0 = p.length;
+    while (s0 > 0 && evalPiece(p, s0).y > yStar) s0 -= 0.05;
+    const sLow = sAtY(p, yStar, s0, Math.min(p.length, s0 + 0.05));
+    this.collectibles = [{ id: 'star', piece: 0, s: sLow, lane: null }];
   }
 
   reset() {
@@ -140,9 +145,10 @@ export class LevelRun {
     this.tricks = 0;
     this.trickSpin = 0;
     this.turnY = null;
+    this.turnX = null;
     this.ledgeSpeed = null;
     this.vMax = 0;
-    this.pumpQueued = null;
+    this.armedAt = null;
     this.maxX = -Infinity;
     this.maxYEnd = -Infinity;
     this.passesWithoutPump = 0;
@@ -157,8 +163,12 @@ export class LevelRun {
     this.record('drop', undefined, this.level.script === 'transfer' || this.level.script === 'gap' ? this.startIndex : undefined);
   }
 
-  /** A press slightly early still counts: it waits up to PUMP_BUFFER s for the curve. */
-  private pumpQueued: number | null = null;
+  /**
+   * One-key pumping: a press arms a pump that fires the moment the rider is
+   * climbing a gold curve (at most one per curve — the physical limit). A
+   * press that finds no curve soon just fizzles: no penalty.
+   */
+  armedAt: number | null = null;
 
   pump() {
     if (this.phase !== 'riding' || !this.level.pumpAllowed || this.pumpLocked) return;
@@ -166,31 +176,38 @@ export class LevelRun {
       this.doPump();
       return;
     }
-    if (this.pumpQueued !== null) {
-      // A second press while one is waiting: the first was mistimed.
-      this.resolveQueued(false);
-    }
-    this.pumpQueued = this.clock;
+    if (this.armedAt === null) this.feedback.push({ kind: 'armed' });
+    this.armedAt = this.clock;
   }
 
   private doPump() {
-    const r = this.sim.pump();
-    this.pumpQueued = null;
-    if (r === 'pump') {
+    this.armedAt = null;
+    if (this.sim.pump() === 'pump') {
       this.passesWithoutPump = 0;
       this.timeScale = 1;
       this.record('pump', 'good');
-    } else if (r === 'scrub') this.record('pump', 'mistimed');
+    }
   }
 
-  private resolveQueued(allowPump: boolean) {
-    if (this.pumpQueued === null) return;
-    if (allowPump && this.sim.zoneAvailable()) {
-      this.doPump();
+  private updateArmed() {
+    if (this.armedAt === null) return;
+    if (this.sim.zoneAvailable()) this.doPump();
+    else if (this.clock - this.armedAt > ARM_WINDOW) {
+      this.armedAt = null;
+      this.feedback.push({ kind: 'fizzle' });
+      this.record('pump', 'no-curve');
+    }
+  }
+
+  /** Pick a start (tower or line) by index — from a tap on its label. */
+  selectStart(i: number) {
+    if (this.phase !== 'ready' || i === this.startIndex || i < 0 || i >= this.level.starts.length) return;
+    if (this.mustUseFirstTower) {
+      this.feedback.push({ kind: 'laneBlocked' });
       return;
     }
-    this.pumpQueued = null;
-    if (this.sim.pump() === 'scrub') this.record('pump', 'mistimed');
+    this.startIndex = i;
+    this.reset();
   }
 
   ollie() {
@@ -229,7 +246,6 @@ export class LevelRun {
       this.sim.setLane(this.sim.lane + delta);
       return;
     }
-    if (this.phase === 'riding') this.sim.setLane(this.sim.lane + delta);
   }
 
   setPrediction(p: Prediction) {
@@ -251,13 +267,17 @@ export class LevelRun {
 
   // ---------------------------------------------------------------- update
   update(dt: number) {
-    if (this.phase !== 'riding') return;
+    if (this.phase !== 'riding') {
+      // After the run the skater keeps rolling (visual only) while the card shows.
+      if ((this.phase === 'result' || this.phase === 'predict') && this.sim.mode === 'ground') {
+        this.sim.step(dt);
+        this.sim.drainEvents();
+      }
+      return;
+    }
     this.clock += dt;
     this.sim.step(dt * this.timeScale);
-    if (this.pumpQueued !== null) {
-      if (this.sim.zoneAvailable()) this.resolveQueued(true);
-      else if (this.clock - this.pumpQueued > PUMP_BUFFER) this.resolveQueued(false);
-    }
+    this.updateArmed();
     const en = this.sim.energies();
     this.vMax = Math.max(this.vMax, en.speed);
     for (const e of this.sim.drainEvents()) this.onEvent(e);
@@ -315,7 +335,10 @@ export class LevelRun {
     const x = this.sim.x;
     const goal = lvl.goal;
     const farSide = x > 0;
-    if (this.turnY === null && farSide) this.turnY = y;
+    if (this.turnY === null && farSide) {
+      this.turnY = y;
+      this.turnX = x;
+    }
     if (lvl.pumpAllowed && farSide) this.passesWithoutPump++;
     switch (lvl.script) {
       case 'firstDrop':
@@ -416,6 +439,7 @@ export class LevelRun {
       startIndex: this.startIndex,
       mass: s.mass,
       turnY: this.turnY,
+      turnX: this.turnX,
       vMax: this.vMax,
       trail: s.trail.slice(),
       lane: s.lane,

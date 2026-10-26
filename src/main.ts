@@ -247,7 +247,8 @@ function startLevel(i: number) {
 
 /** The goal, big in the middle of the screen for a moment at the start of a level. */
 function showGoalBanner(l: LevelDef) {
-  const b = el('div', 'goal-banner', `<small>שלב ${levelIndex + 1}</small>${l.goalHe}`);
+  const how = l.pumpAllowed ? 'רווח / הקשה = יוצאים, ואז שואבים בעקומה הזהובה' : l.starts.length > 1 ? 'בחרו ← → ואז רווח / הקשה = יוצאים' : 'רווח / הקשה = יוצאים';
+  const b = el('div', 'goal-banner', `<small>שלב ${levelIndex + 1}</small>${l.goalHe}<small>${how}</small>`);
   hud.floats.append(b);
   setTimeout(() => b.remove(), 3200);
 }
@@ -470,6 +471,7 @@ function showMenu(fromEnd = false) {
     <h1 class="logo">ג<span class="j">'ו</span>ל ברמפה</h1>
     <p class="tagline">${fromEnd ? 'כל הכבוד! אפשר לשפר כוכבים בכל שלב.' : 'סקייטבורד בטיילת של תל אביב — ורואים את האנרגיה. אי אפשר לעלות גבוה יותר ממה שהאנרגיה שלכם מאפשרת.'}</p>
     <button class="btn" data-play>▶ ${next > 0 ? 'המשיכו' : 'שחקו'}</button>
+    <p class="one-key">🎮 מקש אחד: <kbd>רווח</kbd> או הקשה על המסך — יוצאים לדרך, ואז שואבים</p>
     <div class="levels">
       ${levels
         .map(
@@ -482,7 +484,7 @@ function showMenu(fromEnd = false) {
       <label><input type="checkbox" data-t="mute" ${sound.muted ? 'checked' : ''}> בלי צליל</label>
       <label><input type="checkbox" data-t="reduced" ${document.body.classList.contains('reduced') ? 'checked' : ''}> פחות תנועה</label>
     </div>
-    <p class="controls-help"><kbd>↓</kbd> דרופ־אין · <kbd>↑</kbd> שאיבה (כשעולים בעקומה הזהובה) · <kbd>←</kbd><kbd>→</kbd> נתיב · <kbd>רווח</kbd> דרופ־אין / קפיצה · <kbd>Shift</kbd> טריק · <kbd>R</kbd> שוב</p>`);
+    <p class="controls-help">מקש אחד: <kbd>רווח</kbd> (או הקשה על המסך) — יוצאים לדרך, ואז שואבים בעקומה הזהובה. <kbd>←</kbd><kbd>→</kbd> רק כדי לבחור מסלול לפני היציאה. <kbd>R</kbd> שוב</p>`);
   s.querySelector('[data-play]')!.addEventListener('click', () => {
     sound.unlock();
     startLevel(next);
@@ -518,74 +520,55 @@ function togglePause() {
 }
 
 // ------------------------------------------------------------------ input
-function action(a: 'drop' | 'pump' | 'left' | 'right' | 'ollie' | 'trick' | 'retry' | 'pause' | 'mute' | 'confirm') {
+type Act = 'go' | 'left' | 'right' | 'retry' | 'pause' | 'mute';
+
+/** The one game key: Space / Enter / ↑ / ↓ / tap. Drop in, then pump; on a card, continue. */
+function go() {
+  if (inMenu) {
+    (hud.screenHost.querySelector('[data-play]') as HTMLElement | null)?.click();
+    return;
+  }
+  if (cardFor === 'result') return retry();
+  if (cardFor === 'done') return nextLevel();
+  if (cardFor === 'predict') return;
+  if (run.phase === 'ready') run.drop();
+  else if (run.phase === 'riding') run.pump();
+}
+
+function action(a: Act) {
   sound.unlock();
   if (a === 'mute') return setMuted(!sound.muted);
   if (a === 'pause') return togglePause();
-  if (inMenu || paused) {
-    if (a === 'confirm' && inMenu) (hud.screenHost.querySelector('[data-play]') as HTMLElement | null)?.click();
+  if (paused) return;
+  if (a === 'go') return go();
+  if (inMenu) return;
+  if (a === 'retry') {
+    if (cardFor === 'done') startLevel(levelIndex);
+    else retry();
     return;
   }
-  if (cardFor === 'result') {
-    if (a === 'retry' || a === 'confirm' || a === 'drop') retry();
-    return;
-  }
-  if (cardFor === 'done') {
-    if (a === 'confirm') nextLevel();
-    if (a === 'retry') startLevel(levelIndex);
-    return;
-  }
-  if (cardFor === 'predict') return;
-  switch (a) {
-    case 'drop':
-    case 'confirm':
-      if (run.phase === 'ready') run.drop();
-      break;
-    case 'pump':
-      run.pump();
-      break;
-    case 'left':
-      run.steer(-1);
-      sound.click();
-      break;
-    case 'right':
-      run.steer(1);
-      sound.click();
-      break;
-    case 'ollie':
-      if (run.phase === 'ready') run.drop();
-      else run.ollie();
-      break;
-    case 'trick':
-      run.trick();
-      if (run.sim.mode === 'air' || run.hopping) skater.kickflip();
-      break;
-    case 'retry':
-      retry();
-      break;
+  // ← → only choose a start (tower / line / lane) before dropping in.
+  if (!cardFor && run.phase === 'ready' && level().starts.length > 1) {
+    run.steer(a === 'left' ? -1 : 1);
+    sound.click();
   }
 }
 
-// ← moves to the lane on the screen's left; in the tower level → picks the next (taller) tower.
-function steerFor(key: 'left' | 'right'): 'left' | 'right' {
-  return key;
-}
-
+const GO_KEYS = new Set([' ', 'Enter', 'ArrowUp', 'ArrowDown', 'w', 'W', 's', 'S']);
 window.addEventListener('keydown', (e) => {
-  if (e.repeat && !['ArrowLeft', 'ArrowRight'].includes(e.key)) return;
-  keysDown.add(e.code);
   const k = e.key;
+  if (e.repeat && k !== 'ArrowLeft' && k !== 'ArrowRight') {
+    if (GO_KEYS.has(k)) e.preventDefault();
+    return;
+  }
+  keysDown.add(e.code);
   let handled = true;
-  if (k === 'ArrowDown' || k === 's' || k === 'S') action('drop');
-  else if (k === ' ') action(run.phase === 'ready' || cardFor ? 'drop' : 'ollie');
-  else if (k === 'ArrowUp' || k === 'w' || k === 'W') action('pump');
-  else if (k === 'ArrowLeft' || k === 'a' || k === 'A') action(steerFor('left'));
-  else if (k === 'ArrowRight' || k === 'd' || k === 'D') action(steerFor('right'));
-  else if (k === 'Shift' || k === 'x' || k === 'X' || k === 'e' || k === 'E') action('trick');
+  if (GO_KEYS.has(k)) action('go');
+  else if (k === 'ArrowLeft' || k === 'a' || k === 'A') action('left');
+  else if (k === 'ArrowRight' || k === 'd' || k === 'D') action('right');
   else if (k === 'r' || k === 'R') action('retry');
   else if (k === 'p' || k === 'P' || k === 'Escape') action('pause');
   else if (k === 'm' || k === 'M') action('mute');
-  else if (k === 'Enter') action('confirm');
   else handled = false;
   if (handled) e.preventDefault();
 });
@@ -601,22 +584,34 @@ hud.btnMute.addEventListener('click', () => action('mute'));
 hud.btnPause.addEventListener('click', () => action('pause'));
 hud.btnRestart.addEventListener('click', () => action('retry'));
 hud.btnMenu.addEventListener('click', () => showMenu());
-const tap = (b: HTMLElement, a: Parameters<typeof action>[0] | (() => Parameters<typeof action>[0])) => {
+const tap = (b: HTMLElement, a: Act) => {
   b.addEventListener('pointerdown', (e) => {
     e.preventDefault();
+    e.stopPropagation();
     b.classList.add('active');
-    action(typeof a === 'function' ? a() : a);
+    action(a);
   });
   const up = () => b.classList.remove('active');
   b.addEventListener('pointerup', up);
   b.addEventListener('pointerleave', up);
 };
-tap(hud.tLeft, () => steerFor('left'));
-tap(hud.tRight, () => steerFor('right'));
-tap(hud.tPump, 'pump');
-tap(hud.tOllie, 'ollie');
-tap(hud.tTrick, 'trick');
-tap(hud.tDrop, 'drop');
+tap(hud.tLeft, 'left');
+tap(hud.tRight, 'right');
+tap(hud.tGo, 'go');
+// Tapping or clicking anywhere on the scene is the same as the game key.
+canvas.addEventListener('pointerdown', (e) => {
+  if (e.button !== 0) return;
+  action('go');
+});
+// Start labels (towers, lines, lanes) are tappable choices.
+hud.labels.addEventListener('pointerdown', (e) => {
+  const t = (e.target as HTMLElement).closest('[data-start]') as HTMLElement | null;
+  if (!t) return;
+  e.stopPropagation();
+  sound.unlock();
+  run.selectStart(Number(t.dataset.start));
+  sound.click();
+});
 if (matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window) document.body.classList.add('is-touch');
 window.addEventListener('pointerdown', (e) => {
   sound.unlock();
@@ -633,24 +628,22 @@ function pollPad() {
   if (!p) return;
   const pressed = p.buttons.map((b) => b.pressed);
   const edge = (i: number) => pressed[i] && !padPrev[i];
-  if (edge(0)) action(run.phase === 'ready' || cardFor ? 'confirm' : 'pump');
-  if (edge(7)) action('pump');
-  if (edge(1)) action('ollie');
-  if (edge(2)) action('trick');
+  if (edge(0) || edge(1) || edge(2) || edge(7)) action('go');
   if (edge(3)) action('retry');
   if (edge(9)) action('pause');
-  if (edge(14)) action(steerFor('left'));
-  if (edge(15)) action(steerFor('right'));
+  if (edge(14)) action('left');
+  if (edge(15)) action('right');
   const ax = p.axes[0] ?? 0;
   const dir = ax < -0.6 ? -1 : ax > 0.6 ? 1 : 0;
-  if (dir !== padAxisPrev && dir !== 0) action(steerFor(dir < 0 ? 'left' : 'right'));
+  if (dir !== padAxisPrev && dir !== 0) action(dir < 0 ? 'left' : 'right');
   padAxisPrev = dir;
   pressed.forEach((v, i) => (padPrev[i] = v));
 }
 
 // ------------------------------------------------------------------ feedback
 function onFeedback(f: Feedback) {
-  const head = project(skaterWorld(1.9));
+  // Above the energy ring, so pop-ups don't cover its labels.
+  const head = project(skaterWorld(2.7));
   const body = skaterWorld(0.7);
   switch (f.kind) {
     case 'pump':
@@ -662,7 +655,7 @@ function onFeedback(f: Feedback) {
       break;
     case 'scrub':
       sound.scrub();
-      if (level().pumpAllowed) hud.floatText(head.x, head.y, 'לא בזמן — שאבו כשאתם עולים בעקומה הזהובה', 'bad');
+      if (level().pumpAllowed) hud.floatText(head.x, head.y, 'שואבים רק בעקומה הזהובה', 'bad');
       spawn(skaterWorld(0.1), 0xbbbbbb, 6, 1, 0.5, 0.25, 1.5);
       break;
     case 'short': {
@@ -672,8 +665,14 @@ function onFeedback(f: Feedback) {
     }
     case 'pumpUnlocked':
       break;
+    case 'armed':
+      hud.floatText(head.x, head.y, '💪 מוכן…', 'work');
+      break;
+    case 'fizzle':
+      hud.floatText(head.x, head.y, 'שואבים רק בעקומה הזהובה', 'bad');
+      break;
     case 'hintPump':
-      hud.floatText(overlay.clientWidth / 2, overlay.clientHeight * 0.32, '↑ שאבו בכל עלייה בעקומה הזהובה!', 'work');
+      hud.floatText(overlay.clientWidth / 2, overlay.clientHeight * 0.32, 'רווח בכל עקומה זהובה = שאיבה!', 'work');
       break;
     case 'star':
       sound.star();
@@ -835,7 +834,7 @@ function updateVisuals(dt: number) {
   const yaw = PLACEMENTS[l.id].yaw;
   skater.root.rotation.set(0, -yaw, 0);
   // Chase levels: turn the rider toward the direction of travel so the camera sees their back.
-  skater.setFacing(l.camera === 'chase' ? Math.PI : 0.35);
+  skater.setFacing(l.camera === 'chase' ? Math.PI : 0);
   skater.setSlope(th);
   skater.setBackpack(run.backpack);
   skater.update(dt);
@@ -846,8 +845,11 @@ function updateVisuals(dt: number) {
     const isCur = z.lane === s.lane;
     const lockedOrHidden = !l.hints.pumpGlow || run.pumpLocked || !l.pumpAllowed;
     const avail = isCur && s.zoneAvailable();
-    mat.opacity = lockedOrHidden ? 0 : avail ? 0.6 + Math.sin(t * 10) * 0.15 : 0.22 + Math.sin(t * 3) * 0.06;
-    z.mesh.visible = !lockedOrHidden;
+    // Visible from the first pass (dimmer while level 1 keeps pumping locked).
+    const hidden = !l.hints.pumpGlow || !l.pumpAllowed;
+    mat.opacity = hidden ? 0 : run.pumpLocked ? 0.3 : avail ? 0.75 + Math.sin(t * 10) * 0.15 : 0.45 + Math.sin(t * 3) * 0.06;
+    z.mesh.visible = !hidden;
+    void lockedOrHidden;
 
   }
   // Stars.
@@ -930,9 +932,9 @@ function drawOverlay() {
     lane.pumpZones.forEach((z, i) => {
       const p = lane.pieces[z.piece];
       const mid = evalPiece(p, (z.s0 + z.s1) / 2);
-      const pp = project(vis.toWorld(mid.x, mid.y + 0.25, s.lane, -lane.width / 2 - 0.3));
+      const pp = project(vis.toWorld(mid.x, mid.y - 0.35, s.lane, -lane.width / 2 - 0.3));
       const avail = s.currentZone() === i && s.zoneAvailable();
-      if (!pp.behind) hintPill(og, pp.x, pp.y, avail ? '↑ שאיבה — עכשיו!' : '↑ שאיבה', avail);
+      if (!pp.behind) hintPill(og, pp.x, pp.y, avail ? 'עכשיו! 💪' : 'שאיבה 💪', avail);
     });
   }
 }
@@ -947,26 +949,32 @@ function updateHud() {
     formulas: l.hints.formulas,
     scale: s.e0 + s.work,
   });
-  hud.tPump.classList.toggle('ready', l.pumpAllowed && !run.pumpLocked && s.zoneAvailable());
-  hud.tPump.hidden = !l.pumpAllowed;
-  hud.tDrop.hidden = run.phase !== 'ready' || !!cardFor;
-  // Key hint.
+  // One game button (touch) + choice arrows only while choosing.
+  const choosing = !cardFor && run.phase === 'ready' && l.starts.length > 1 && !run.mustUseFirstTower;
+  const canPump = run.phase === 'riding' && l.pumpAllowed && !run.pumpLocked;
+  const pumpNow = canPump && (s.zoneAvailable() || run.armedAt !== null);
+  hud.tLeft.hidden = hud.tRight.hidden = !choosing;
+  hud.tGo.hidden = !!cardFor || !(run.phase === 'ready' || canPump);
+  const goText = run.phase === 'ready' ? 'יוצאים!' : 'שאיבה 💪';
+  if (hud.tGo.textContent !== goText) hud.tGo.textContent = goText;
+  hud.tGo.classList.toggle('ready', pumpNow);
+  // Key hint: there is only one game key.
+  const K = `<span class="k">${document.body.classList.contains('is-touch') ? 'הקישו' : 'רווח'}</span>`;
   let hint = '';
   if (cardFor || paused) hint = '';
   else if (run.phase === 'ready') {
-    if (l.script === 'gap') hint = run.mustUseFirstTower ? '<span class="k">↓</span> / רווח — נסו קודם מהמגדל הנמוך' : '<span class="k">← →</span> בחרו מגדל · <span class="k">↓</span> דרופ־אין';
-    else if (l.starts.length > 1) hint = '<span class="k">← →</span> בחרו קו · <span class="k">↓</span> דרופ־אין';
-    else if (l.track.lanes.length > 1) hint = '<span class="k">← →</span> בחרו נתיב · <span class="k">↓</span> / רווח — דרופ־אין';
-    else if (run.backpack) hint = '🎒 עם תיק · <span class="k">↓</span> / רווח — דרופ־אין';
-    else hint = '<span class="k">↓</span> / רווח — דרופ־אין';
+    const bag = run.backpack ? '🎒 עם תיק · ' : '';
+    if (run.mustUseFirstTower) hint = `${K} — נסו קודם מהמגדל הנמוך`;
+    else if (choosing) hint = `<span class="k">← →</span> או הקישו על שלט — בחרו · ${K} — יוצאים!`;
+    else hint = `${bag}${K} — יוצאים!`;
   } else if (run.phase === 'riding') {
-    if (l.script === 'firstDrop' && !run.pumpLocked && s.pumps < 2) hint = '<span class="k">↑</span> שאבו כשאתם עולים בעקומה הזהובה';
-    else if (l.script === 'surfaces') hint = '<span class="k">← →</span> החליפו נתיב — היזהרו מחול ומאספלט!';
-    else if (l.script === 'pump' && s.pumps < 2) hint = '<span class="k">↑</span> שאבו בכל עלייה בעקומה הזהובה';
+    if (l.script === 'firstDrop' && run.pumpLocked) hint = 'צפו בטבעת: ▲ גובה הופך ל־» תנועה, וחוזר';
+    else if (canPump && s.zoneAvailable()) hint = `${K} — עכשיו! 💪`;
+    else if (canPump && s.pumps < 3) hint = `${K} כשאתם בעקומה הזהובה = שאיבה 💪`;
   }
   if (hud.keyhint.dataset.h !== hint) {
     hud.keyhint.dataset.h = hint;
-    hud.setKeyHint(hint, run.phase === 'ready');
+    hud.setKeyHint(hint, run.phase === 'ready' || pumpNow);
   }
   // Tower / line labels in the ready phase.
   if (l.starts.length > 1 && (run.phase === 'ready' || cardFor === 'result')) {
@@ -974,8 +982,9 @@ function updateHud() {
       const lane = l.track.lanes[st.lane];
       const p = evalPiece(lane.pieces[st.piece], st.s);
       const pp = project(vis.toWorld(p.x - 0.6, p.y + (l.script === "gap" ? 0.35 : 2.2), st.lane));
-      const text = l.script === 'gap' ? ltr(`Δh = ${st.dropH} m`) : ['קו א', 'קו ב', 'קו ג'][i];
-      hud.label(`start-${i}`, pp.x, pp.y, text, i === run.startIndex ? 'sel' : '', !pp.behind);
+      const names = l.script === 'surfaces' ? ['נתיב א', 'נתיב ב', 'נתיב ג'] : ['קו א', 'קו ב', 'קו ג'];
+      const text = l.script === 'gap' ? ltr(`Δh = ${st.dropH} m`) : names[i];
+      hud.label(`start-${i}`, pp.x, pp.y, text, i === run.startIndex ? 'sel' : '', !pp.behind, i);
     });
   } else hud.hideLabels('start-');
   if (l.camera === 'side' && run.phase !== 'done' && !inMenu) {
@@ -986,6 +995,19 @@ function updateHud() {
       hud.label(`deck-${i}`, pp.x, pp.y, text, c.target ? 'need' : '', !pp.behind);
     });
   } else hud.hideLabels('deck-');
+  // Mass level: show the bag, and mark the peak of each run.
+  if (l.script === 'mass' && !inMenu) {
+    const bp = project(skaterWorld(2.2).add(new THREE.Vector3(0, 0, 0)));
+    hud.label('bag', bp.x + 70, bp.y, `🎒 ${ltr(`+${l.backpack} kg`)}`, 'need', run.backpack && !bp.behind && run.phase !== 'done');
+    const sum = run.lastSummary;
+    if (sum && sum.turnX !== null && sum.turnY !== null && run.phase !== 'riding') {
+      const pk = project(vis.toWorld(sum.turnX, sum.turnY + 0.5, 0, -1.8));
+      hud.label('peak', pk.x, pk.y, `שיא · ${ltr(`${sum.turnY.toFixed(2)} m`)}`, '', !pk.behind);
+    } else hud.hideLabels('peak');
+  } else {
+    hud.hideLabels('bag');
+    hud.hideLabels('peak');
+  }
   if (l.script === 'gap' && !inMenu) {
     const zp = project(vis.toWorld(l.xMarks.ledge + 1.3, 0.15, 0, -2));
     hud.label('zero', zp.x, zp.y, `${ltr('h = 0 m')} · מישור ייחוס`, '', !zp.behind);
@@ -1090,7 +1112,7 @@ window.advanceTime = (ms: number) => {
   render();
 };
 
-window.__game = { run: () => run, startLevel, action, levels };
+window.__game = { run: () => run, startLevel, action, levels, skater, scene };
 
 // ------------------------------------------------------------------ boot
 resize();

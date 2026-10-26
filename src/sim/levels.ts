@@ -213,11 +213,11 @@ export const L3 = {
   towerH: 3.0,
   flatLen: 34,
   targetH: 2.25,
+  // Pick a lane before dropping in: [surface, length] runs along the flat (left → right lane).
   lanes: [
-    // [surface, length] runs along the flat, per lane (z from right to left)
-    [['smooth', 12], ['sand', 10], ['smooth', 12]],
+    [['smooth', 14], ['sand', 6], ['smooth', 14]],
     [['asphalt', 34]],
-    [['sand', 6], ['smooth', 20], ['asphalt', 8]],
+    [['smooth', 34]],
   ] as [Surface, number][][],
 };
 
@@ -256,17 +256,17 @@ function buildSurfaces(): LevelDef {
     area: 3,
     grade: 8,
     nameHe: 'משטחים רעים',
-    goalHe: 'הגיעו לרמפה בסוף — החליפו נתיבים כדי להישאר על בטון חלק',
+    goalHe: 'בחרו נתיב והגיעו לרמפה בסוף — איזה משטח שומר הכי הרבה אנרגיה?',
     track: { lanes },
     mass: 50,
-    starts: [{ lane: 1, piece: 0, s: startS, dir: 1 }],
-    firstStart: 0,
+    starts: [0, 1, 2].map((lane) => ({ lane, piece: 0, s: startS, dir: 1 as const })),
+    firstStart: 1,
     goal,
     collectibles: [],
     hints: { energyLine: true, ringNumbers: true, pumpGlow: false, formulas: false },
     camera: 'chase',
     floorY: -1,
-    laneSwitch: 'free',
+    laneSwitch: 'start',
     pumpAllowed: false,
     script: 'surfaces',
     copings: [{ x: lip2x, y: targetH, target: true }],

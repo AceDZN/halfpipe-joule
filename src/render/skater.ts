@@ -8,8 +8,9 @@ export type Pose = 'ready' | 'ride' | 'crouch' | 'air' | 'bail' | 'cheer' | 'pus
 
 const CLIP_KEYS: Record<Pose, string[]> = {
   ready: ['idle', 'stand'],
-  ride: ['surf', 'ride', 'idle', 'stand'],
-  crouch: ['crouch', 'squat', 'pump', 'surf', 'idle'],
+  // The Tripo `surf` clip puts the feet off the deck; ride on `idle` and bend the knees in code.
+  ride: ['idle', 'stand'],
+  crouch: ['idle', 'stand'],
   air: ['ollie', 'jump'],
   bail: ['bail', 'fall', 'die', 'death', 'knock'],
   cheer: ['cheer', 'celebrat', 'victory', 'dance'],
@@ -122,6 +123,12 @@ export class SkaterVisual {
   }
 
   boardModel: THREE.Object3D | null = null;
+  private model: THREE.Object3D | null = null;
+  private modelBaseY = 0;
+  private ankleY = 0;
+  private legBones: Record<'upL' | 'upR' | 'legL' | 'legR' | 'footL' | 'footR', THREE.Object3D> | null = null;
+  /** Knee-bend direction for this rig (+1 bends the knees forward). */
+  kneeSign = 1;
   private backpack: THREE.Object3D | null = null;
   private wantBackpack = false;
 
@@ -142,20 +149,19 @@ export class SkaterVisual {
       const pack = m.clone();
       const holder = new THREE.Group();
       holder.add(pack);
+      // Place it on the back in rider space (the rider faces +Z), then hand it to the
+      // spine bone keeping that world pose, so it follows the torso.
+      pack.rotation.y = Math.PI;
+      holder.scale.setScalar(0.62);
+      holder.position.set(0.05, 0.92, -0.24);
+      this.rider.add(holder);
       let spine: THREE.Object3D | null = null;
       this.rider.traverse((o) => {
         if (!spine && /spine2$/i.test(o.name)) spine = o;
       });
       if (spine) {
-        // Bone space is in the rig's (scaled) units: undo the model scale.
-        const s = (spine as THREE.Object3D).getWorldScale(new THREE.Vector3()).x || 1;
-        holder.scale.setScalar(0.5 / s);
-        holder.position.set(0, -0.1 / s, -0.22 / s);
-        (spine as THREE.Object3D).add(holder);
-      } else {
-        holder.scale.setScalar(0.45);
-        holder.position.set(0, 0.95, -0.25);
-        this.rider.add(holder);
+        this.root.updateMatrixWorld(true);
+        (spine as THREE.Object3D).attach(holder);
       }
       holder.traverse((o) => {
         if ((o as THREE.Mesh).isMesh) o.castShadow = true;
@@ -184,6 +190,23 @@ export class SkaterVisual {
     this.rider.remove(this.placeholder);
     this.rider.add(model);
     this.hasRig = true;
+    this.model = model;
+    this.modelBaseY = model.position.y;
+    const bone = (n: string) => {
+      let b: THREE.Object3D | null = null;
+      model.traverse((o) => {
+        if (!b && o.name.toLowerCase().endsWith(n)) b = o;
+      });
+      return b as THREE.Object3D | null;
+    };
+    const parts = ['leftupleg', 'rightupleg', 'leftleg', 'rightleg', 'leftfoot', 'rightfoot'].map(bone);
+    if (parts.every(Boolean)) {
+      const [upL, upR, legL, legR, footL, footR] = parts as THREE.Object3D[];
+      this.legBones = { upL, upR, legL, legR, footL, footR };
+      // Ankle height in the bind pose (soles on the deck).
+      this.root.updateMatrixWorld(true);
+      this.ankleY = Math.min(this.rider.worldToLocal(footL.getWorldPosition(new THREE.Vector3())).y, this.rider.worldToLocal(footR.getWorldPosition(new THREE.Vector3())).y);
+    }
     this.mixer = new THREE.AnimationMixer(model);
     for (const pose of Object.keys(CLIP_KEYS) as Pose[]) {
       const clip = CLIP_KEYS[pose].map((k) => clips.find((c) => c.name.toLowerCase().includes(k))).find(Boolean);
@@ -220,7 +243,8 @@ export class SkaterVisual {
   setSlope(th: number) {
     this.boardPivot.rotation.z = th;
     this.riderPivot.rotation.set(0, 0, 0);
-    this.riderPivot.rotateZ(th * 0.55);
+    // Feet stay on the deck: the rider stands perpendicular to the ramp like the board.
+    this.riderPivot.rotateZ(th);
     this.riderPivot.rotateY(this.facing);
   }
 
@@ -240,6 +264,27 @@ export class SkaterVisual {
     this.hopT = 0;
   }
 
+  /** Bend the knees by the crouch amount and keep both feet planted on the deck. */
+  private plantFeet() {
+    const b = this.legBones;
+    const m = this.model;
+    if (!b || !m) return;
+    const grounded = this.current === 'ride' || this.current === 'crouch' || this.current === 'ready' || this.current === null;
+    m.position.y = this.modelBaseY;
+    if (!grounded) return;
+    const c = this.crouch * this.kneeSign;
+    b.upL.rotation.x -= c * 0.9;
+    b.upR.rotation.x -= c * 0.9;
+    b.legL.rotation.x += c * 1.6;
+    b.legR.rotation.x += c * 1.6;
+    b.footL.rotation.x -= c * 0.7;
+    b.footR.rotation.x -= c * 0.7;
+    this.root.updateMatrixWorld(true);
+    const v = new THREE.Vector3();
+    const low = Math.min(this.rider.worldToLocal(b.footL.getWorldPosition(v)).y, this.rider.worldToLocal(b.footR.getWorldPosition(v)).y);
+    m.position.y += this.ankleY - low;
+  }
+
   /** Spin the board for a trick (radians to add). */
   kickflip() {
     this.boardSpin += Math.PI * 2;
@@ -248,6 +293,7 @@ export class SkaterVisual {
   update(dt: number) {
     this.mixer?.update(dt);
     this.crouch += (this.crouchTarget - this.crouch) * Math.min(1, dt * 10);
+    this.plantFeet();
     if (!this.hasRig) {
       const c = this.crouch;
       for (const l of this.legs) {
