@@ -60,20 +60,24 @@ export class SkaterVisual {
       // (long axis, width, wheel side) mapped to +X length, +Z width, -Y wheels.
       const b = m.clone();
       const along = new THREE.Vector3(0, 0.866, -0.5);
-      const up = new THREE.Vector3(0, 0.5, 0.866);
+      // Wheels down: the deck graphic is on the underside.
+      const up = new THREE.Vector3(0, -0.5, -0.866);
       const width = new THREE.Vector3().crossVectors(along, up);
       const basis = new THREE.Matrix4().makeBasis(along, up, width).transpose();
       b.quaternion.setFromRotationMatrix(basis);
       const holder = new THREE.Group();
       holder.add(b);
       b.updateMatrixWorld(true);
-      const box = new THREE.Box3().setFromObject(b);
+      // Precise (per-vertex) bounds: the mesh's own box is tilted, so its AABB would be inflated.
+      const box = new THREE.Box3().setFromObject(b, true);
       const size = box.getSize(new THREE.Vector3());
       const centre = box.getCenter(new THREE.Vector3());
       b.position.set(-centre.x, -box.min.y, -centre.z);
       const s = 0.82 / size.x;
       holder.scale.setScalar(s);
       holder.position.y = 0.0;
+      // Grip-tape height: the soles stand exactly here.
+      this.deckTop = size.y * s;
       holder.traverse((o) => {
         if ((o as THREE.Mesh).isMesh) o.castShadow = true;
       });
@@ -125,7 +129,10 @@ export class SkaterVisual {
   boardModel: THREE.Object3D | null = null;
   private model: THREE.Object3D | null = null;
   private modelBaseY = 0;
+  private modelBaseX = 0;
   private ankleY = 0;
+  /** Height of the deck's grip tape above the wheels' contact point (m). */
+  private deckTop = 0.11;
   private legBones: Record<'upL' | 'upR' | 'legL' | 'legR' | 'footL' | 'footR', THREE.Object3D> | null = null;
   /** Knee-bend direction for this rig (+1 bends the knees forward). */
   kneeSign = 1;
@@ -205,7 +212,13 @@ export class SkaterVisual {
       this.legBones = { upL, upR, legL, legR, footL, footR };
       // Ankle height in the bind pose (soles on the deck).
       this.root.updateMatrixWorld(true);
-      this.ankleY = Math.min(this.rider.worldToLocal(footL.getWorldPosition(new THREE.Vector3())).y, this.rider.worldToLocal(footR.getWorldPosition(new THREE.Vector3())).y);
+      const aL = this.rider.worldToLocal(footL.getWorldPosition(new THREE.Vector3()));
+      const aR = this.rider.worldToLocal(footR.getWorldPosition(new THREE.Vector3()));
+      this.ankleY = Math.min(aL.y, aR.y);
+      // Centre the feet on the deck (between the trucks, on its centre line).
+      model.position.x -= (aL.x + aR.x) / 2;
+      model.position.z -= (aL.z + aR.z) / 2;
+      this.modelBaseX = model.position.x;
     }
     this.mixer = new THREE.AnimationMixer(model);
     for (const pose of Object.keys(CLIP_KEYS) as Pose[]) {
@@ -270,7 +283,9 @@ export class SkaterVisual {
     const m = this.model;
     if (!b || !m) return;
     const grounded = this.current === 'ride' || this.current === 'crouch' || this.current === 'ready' || this.current === null;
-    m.position.y = this.modelBaseY;
+    // Bind pose put the soles at 0.11 m; lift them onto the real deck top.
+    m.position.y = this.modelBaseY + (this.deckTop - 0.11);
+    m.position.x = this.modelBaseX;
     if (!grounded) return;
     const c = this.crouch * this.kneeSign;
     b.upL.rotation.x -= c * 0.9;
@@ -281,8 +296,11 @@ export class SkaterVisual {
     b.footR.rotation.x -= c * 0.7;
     this.root.updateMatrixWorld(true);
     const v = new THREE.Vector3();
-    const low = Math.min(this.rider.worldToLocal(b.footL.getWorldPosition(v)).y, this.rider.worldToLocal(b.footR.getWorldPosition(v)).y);
-    m.position.y += this.ankleY - low;
+    const fl = this.rider.worldToLocal(b.footL.getWorldPosition(v.clone()));
+    const fr = this.rider.worldToLocal(b.footR.getWorldPosition(v.clone()));
+    m.position.y += this.ankleY + (this.deckTop - 0.11) - Math.min(fl.y, fr.y);
+    // Keep the stance centred between the trucks.
+    m.position.x -= (fl.x + fr.x) / 2;
   }
 
   /** Spin the board for a trick (radians to add). */

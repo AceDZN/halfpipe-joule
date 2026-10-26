@@ -1135,7 +1135,7 @@ window.advanceTime = (ms: number) => {
   render();
 };
 
-window.__game = { run: () => run, startLevel, action, levels, skater, scene };
+window.__game = { run: () => run, startLevel, action, levels, skater, scene, skaterScreen: () => project(skaterWorld(0.8)) };
 
 // ------------------------------------------------------------------ boot
 resize();

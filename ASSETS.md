@@ -106,3 +106,9 @@ Account balance (shared with other crews who were generating at the same time): 
 
 - Ramps, bowls, towers, coping, energy ring, pump ring, energy line, replay bars: procedural (per BUILD_HANDOFF).
 - Heavier second skater: skipped (6-generation cap used on board/landmarks/props).
+
+## In-game fitting (lead, 26 Oct 2026)
+
+- **Board:** the GLB stands on its tail tilted 30° (principal axes measured: long axis (0, 0.866, −0.5), wheels toward (0, −0.5, −0.866) — the colourful graphic is the underside). It is rotated so the long axis is +X and the wheels point down, sized to 0.82 m, with bounds measured per vertex (`Box3.setFromObject(…, true)`; the mesh's own tilted box inflated the size and lifted the board). Deck grip height ≈ 0.16 m.
+- **Skater:** rides the `idle` clip (the `surf` clip's stance put the feet off the deck); the pump crouch is a code-driven knee bend; each frame the model is shifted so the lower ankle sits on the grip tape and the feet are centred between the trucks.
+- **Backpack:** attached to `mixamorig:Spine2`, placed on the back in rider space at load.
