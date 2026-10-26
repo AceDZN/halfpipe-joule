@@ -75,6 +75,13 @@ body {
   pointer-events: auto;
 }
 
+.ltr,
+.bank .col .val,
+.bank .readouts,
+.formula {
+  font-family: 'Helvetica Neue', Arial, sans-serif;
+}
+
 .ltr {
   direction: ltr;
   unicode-bidi: isolate;
@@ -602,6 +609,39 @@ button {
 .label3d.need {
   background: rgba(255, 210, 63, 0.92);
   color: var(--ink);
+}
+
+body.in-menu .topbar,
+body.in-menu .objective,
+body.in-menu .keyhint,
+body.in-menu .bank,
+body.in-menu .touch,
+body.in-menu .replay-tag {
+  display: none !important;
+}
+
+.goal-banner {
+  position: absolute;
+  top: 34%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 14px 30px;
+  border-radius: 20px;
+  background: rgba(20, 24, 36, 0.86);
+  border: 2px solid var(--gold);
+  font-size: clamp(20px, 3vw, 32px);
+  font-weight: 900;
+  text-align: center;
+  pointer-events: none;
+  animation: floatUp 3.2s ease-out forwards;
+  max-width: 90vw;
+}
+
+.goal-banner small {
+  display: block;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--gold);
 }
 
 /* ---------------------------------------------------------- touch */

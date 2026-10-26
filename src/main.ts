@@ -220,6 +220,8 @@ function startLevel(i: number) {
   run = new LevelRun(l);
   vis = visuals.get(l.id)!;
   inMenu = false;
+  document.body.classList.remove('in-menu');
+  showGoalBanner(l);
   paused = false;
   hud.hideScreen();
   hud.hideCard();
@@ -241,6 +243,13 @@ function startLevel(i: number) {
     return { mesh: m, id: c.id, high: !!c.high };
   });
   skater.setPose('ready');
+}
+
+/** The goal, big in the middle of the screen for a moment at the start of a level. */
+function showGoalBanner(l: LevelDef) {
+  const b = el('div', 'goal-banner', `<small>שלב ${levelIndex + 1}</small>${l.goalHe}`);
+  hud.floats.append(b);
+  setTimeout(() => b.remove(), 3200);
 }
 
 function retry() {
@@ -451,6 +460,7 @@ function showDoneCard() {
 // ------------------------------------------------------------------ menu
 function showMenu(fromEnd = false) {
   inMenu = true;
+  document.body.classList.add('in-menu');
   paused = false;
   hud.hideCard();
   cardFor = null;
@@ -472,7 +482,7 @@ function showMenu(fromEnd = false) {
       <label><input type="checkbox" data-t="mute" ${sound.muted ? 'checked' : ''}> בלי צליל</label>
       <label><input type="checkbox" data-t="reduced" ${document.body.classList.contains('reduced') ? 'checked' : ''}> פחות תנועה</label>
     </div>
-    <p class="controls-help"><kbd>↓</kbd>/<kbd>רווח</kbd> דרופ־אין · <kbd>↑</kbd> שאיבה (בטבעת הזהובה) · <kbd>←</kbd><kbd>→</kbd> נתיב · <kbd>רווח</kbd> קפיצה · <kbd>Shift</kbd> טריק · <kbd>R</kbd> שוב</p>`);
+    <p class="controls-help"><kbd>↓</kbd> דרופ־אין · <kbd>↑</kbd> שאיבה (כשעולים בעקומה הזהובה) · <kbd>←</kbd><kbd>→</kbd> נתיב · <kbd>רווח</kbd> דרופ־אין / קפיצה · <kbd>Shift</kbd> טריק · <kbd>R</kbd> שוב</p>`);
   s.querySelector('[data-play]')!.addEventListener('click', () => {
     sound.unlock();
     startLevel(next);
@@ -652,7 +662,7 @@ function onFeedback(f: Feedback) {
       break;
     case 'scrub':
       sound.scrub();
-      if (level().pumpAllowed) hud.floatText(head.x, head.y, 'לא בזמן — רק בטבעת הזהובה', 'bad');
+      if (level().pumpAllowed) hud.floatText(head.x, head.y, 'לא בזמן — שאבו כשאתם עולים בעקומה הזהובה', 'bad');
       spawn(skaterWorld(0.1), 0xbbbbbb, 6, 1, 0.5, 0.25, 1.5);
       break;
     case 'short': {
@@ -663,7 +673,7 @@ function onFeedback(f: Feedback) {
     case 'pumpUnlocked':
       break;
     case 'hintPump':
-      hud.floatText(overlay.clientWidth / 2, overlay.clientHeight * 0.32, '↑ שאבו בכל מעבר בטבעת!', 'work');
+      hud.floatText(overlay.clientWidth / 2, overlay.clientHeight * 0.32, '↑ שאבו בכל עלייה בעקומה הזהובה!', 'work');
       break;
     case 'star':
       sound.star();
@@ -905,8 +915,8 @@ function drawOverlay() {
   // Energy ring around the skater.
   const c = project(skaterWorld(0.85));
   const edge = project(skaterWorld(0.85).add(new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0).multiplyScalar(1.15)));
-  const r = Math.max(52, Math.min(150, Math.hypot(edge.x - c.x, edge.y - c.y)));
-  if (!c.behind && s.mode !== 'bailed')
+  const r = Math.max(72, Math.min(150, Math.hypot(edge.x - c.x, edge.y - c.y)));
+  if (!c.behind && s.mode !== 'bailed' && !paused && !hud.screenOpen)
     drawRing(og, { cx: c.x, cy: c.y, r, ep: en.ep, ek: en.ek, heat: en.heat, numbers: l.hints.ringNumbers || run.phase === 'done', alpha: run.phase === 'result' ? 0.4 : 0.95 });
   // Energy line label.
   if (energyLine.visible) {
@@ -950,9 +960,9 @@ function updateHud() {
     else if (run.backpack) hint = '🎒 עם תיק · <span class="k">↓</span> / רווח — דרופ־אין';
     else hint = '<span class="k">↓</span> / רווח — דרופ־אין';
   } else if (run.phase === 'riding') {
-    if (l.script === 'firstDrop' && !run.pumpLocked && s.pumps < 2) hint = '<span class="k">↑</span> שאבו כשאתם בטבעת הזהובה';
+    if (l.script === 'firstDrop' && !run.pumpLocked && s.pumps < 2) hint = '<span class="k">↑</span> שאבו כשאתם עולים בעקומה הזהובה';
     else if (l.script === 'surfaces') hint = '<span class="k">← →</span> החליפו נתיב — היזהרו מחול ומאספלט!';
-    else if (l.script === 'pump' && s.pumps < 2) hint = '<span class="k">↑</span> שאבו בכל מעבר בטבעת';
+    else if (l.script === 'pump' && s.pumps < 2) hint = '<span class="k">↑</span> שאבו בכל עלייה בעקומה הזהובה';
   }
   if (hud.keyhint.dataset.h !== hint) {
     hud.keyhint.dataset.h = hint;
@@ -968,6 +978,14 @@ function updateHud() {
       hud.label(`start-${i}`, pp.x, pp.y, text, i === run.startIndex ? 'sel' : '', !pp.behind);
     });
   } else hud.hideLabels('start-');
+  if (l.camera === 'side' && run.phase !== 'done' && !inMenu) {
+    l.copings.forEach((c, i) => {
+      if (c.y > 2.9 && !c.target) return;
+      const pp = project(vis.toWorld(c.x + (c.target ? 1.2 : -0.9), c.y + (c.target ? 2.0 : 0.45), 0));
+      const text = c.target ? `🎯 יעד · ${ltr(`${c.y.toFixed(2)} m`)}` : `התחלה · ${ltr(`${c.y.toFixed(2)} m`)}`;
+      hud.label(`deck-${i}`, pp.x, pp.y, text, c.target ? 'need' : '', !pp.behind);
+    });
+  } else hud.hideLabels('deck-');
   if (l.script === 'gap' && !inMenu) {
     const zp = project(vis.toWorld(l.xMarks.ledge + 1.3, 0.15, 0, -2));
     hud.label('zero', zp.x, zp.y, `${ltr('h = 0 m')} · מישור ייחוס`, '', !zp.behind);

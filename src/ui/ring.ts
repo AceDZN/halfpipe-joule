@@ -23,7 +23,8 @@ export const COLORS = {
 };
 
 function pill(g: CanvasRenderingContext2D, x: number, y: number, text: string, color: string, size: number) {
-  g.font = `700 ${size}px Rubik, sans-serif`;
+  // Latin UI font for numbers and units: Rubik's "J" reads like the Hebrew ג.
+  g.font = `700 ${size}px "Helvetica Neue", Arial, sans-serif`;
   g.direction = 'ltr';
   const w = g.measureText(text).width + size * 1.1;
   const h = size * 1.6;
